@@ -1,0 +1,93 @@
+import { NavLink, useNavigate } from 'react-router-dom'
+import { useAuth } from '../features/auth/AuthContext'
+
+interface NavItem {
+  label: string
+  to: string
+}
+
+const NAV_ITEMS_BY_ROLE: Record<string, NavItem[]> = {
+  Admin: [
+    { label: 'Dashboard', to: '/dashboard' },
+    { label: 'Collections', to: '/dashboard/collections' },
+    { label: 'Clients', to: '/dashboard/clients' },
+    { label: 'Routes', to: '/dashboard/routes' },
+    { label: 'Billing', to: '/dashboard/billing' },
+    { label: 'Reports', to: '/dashboard/reports' },
+    { label: 'Complaints', to: '/dashboard/complaints' },
+    { label: 'SMS Log', to: '/dashboard/sms-log' },
+    { label: 'Users', to: '/dashboard/users' },
+  ],
+  Operations_Manager: [
+    { label: 'Dashboard', to: '/dashboard' },
+    { label: 'Collections', to: '/dashboard/collections' },
+    { label: 'Clients', to: '/dashboard/clients' },
+    { label: 'Routes', to: '/dashboard/routes' },
+    { label: 'Complaints', to: '/dashboard/complaints' },
+  ],
+  Finance: [
+    { label: 'Dashboard', to: '/dashboard' },
+    { label: 'Billing', to: '/dashboard/billing' },
+    { label: 'Reports', to: '/dashboard/reports' },
+    { label: 'SMS Log', to: '/dashboard/sms-log' },
+  ],
+}
+
+export default function Sidebar() {
+  const { user, role, signOut } = useAuth()
+  const navigate = useNavigate()
+
+  const navItems: NavItem[] = (role && NAV_ITEMS_BY_ROLE[role]) ?? []
+
+  const handleSignOut = async () => {
+    await signOut()
+    navigate('/login')
+  }
+
+  return (
+    <aside className="flex flex-col w-64 min-h-screen bg-gray-900 text-white">
+      {/* Logo / brand */}
+      <div className="px-6 py-5 border-b border-gray-700">
+        <span className="text-green-400 font-bold text-lg leading-tight">
+          Desheena
+        </span>
+        <span className="block text-gray-400 text-xs mt-0.5">Waste Management</span>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto" aria-label="Main navigation">
+        {navItems.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.to === '/dashboard'}
+            className={({ isActive }) =>
+              [
+                'flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-green-700 text-white'
+                  : 'text-gray-300 hover:bg-gray-800 hover:text-white',
+              ].join(' ')
+            }
+          >
+            {item.label}
+          </NavLink>
+        ))}
+      </nav>
+
+      {/* User info + sign out */}
+      <div className="px-4 py-4 border-t border-gray-700 space-y-3">
+        <div className="text-xs text-gray-400 truncate">
+          <div className="font-medium text-gray-200 truncate">{user?.email}</div>
+          <div className="mt-0.5">{role ?? 'Unknown role'}</div>
+        </div>
+        <button
+          onClick={handleSignOut}
+          className="w-full rounded-lg bg-gray-700 px-3 py-2 text-sm font-medium text-gray-200 hover:bg-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500"
+        >
+          Sign out
+        </button>
+      </div>
+    </aside>
+  )
+}
