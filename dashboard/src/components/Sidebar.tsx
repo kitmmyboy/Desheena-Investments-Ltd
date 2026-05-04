@@ -17,6 +17,7 @@ const NAV_ITEMS_BY_ROLE: Record<string, NavItem[]> = {
     { label: 'Complaints', to: '/dashboard/complaints' },
     { label: 'SMS Log', to: '/dashboard/sms-log' },
     { label: 'Users', to: '/dashboard/users' },
+    { label: 'Settings', to: '/dashboard/settings' },
   ],
   Operations_Manager: [
     { label: 'Dashboard', to: '/dashboard' },
@@ -77,7 +78,23 @@ export default function Sidebar() {
 
       {/* User info + sign out */}
       <div className="px-4 py-4 border-t border-gray-700 space-y-3">
-        <div className="text-xs text-gray-400 truncate">
+        <NavLink
+          to="/dashboard/profile"
+          className={({ isActive }) =>
+            [
+              'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+              isActive
+                ? 'bg-green-700 text-white'
+                : 'text-gray-300 hover:bg-gray-800 hover:text-white',
+            ].join(' ')
+          }
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+          </svg>
+          My Profile
+        </NavLink>
+        <div className="text-xs text-gray-400 truncate px-1">
           <div className="font-medium text-gray-200 truncate">{user?.email}</div>
           <div className="mt-0.5">{role ?? 'Unknown role'}</div>
         </div>

@@ -53,6 +53,21 @@ const ComplaintsPage = lazy(() =>
   import('./features/complaints').then((m) => ({ default: m.ComplaintsPage }))
 )
 
+// UsersPage — Admin-only user management with full CRUD
+const UsersPage = lazy(() =>
+  import('./features/users').then((m) => ({ default: m.UsersPage }))
+)
+
+// ProfilePage — available to all authenticated users
+const ProfilePage = lazy(() =>
+  import('./features/profile/ProfilePage').then((m) => ({ default: m.default }))
+)
+
+// SettingsPage — Admin-only system configuration
+const SettingsPage = lazy(() =>
+  import('./features/settings/SettingsPage').then((m) => ({ default: m.default }))
+)
+
 // ---------------------------------------------------------------------------
 // Loading fallback shown while lazy chunks are fetched
 // ---------------------------------------------------------------------------
@@ -84,10 +99,6 @@ function PageLoader() {
       Loading…
     </div>
   )
-}
-
-function UsersPage() {
-  return <div className="text-gray-700"><h2 className="text-xl font-semibold">Users</h2></div>
 }
 
 // ---------------------------------------------------------------------------
@@ -229,8 +240,30 @@ export default function App() {
               path="users"
               element={
                 <ProtectedRoute allowedRoles={[ADMIN]}>
-                  <UsersPage />
+                  <Suspense fallback={<PageLoader />}>
+                    <UsersPage />
+                  </Suspense>
                 </ProtectedRoute>
+              }
+            />
+            <Route
+              path="settings"
+              element={
+                <ProtectedRoute allowedRoles={[ADMIN]}>
+                  <Suspense fallback={<PageLoader />}>
+                    <SettingsPage />
+                  </Suspense>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* All authenticated users */}
+            <Route
+              path="profile"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <ProfilePage />
+                </Suspense>
               }
             />
           </Route>
