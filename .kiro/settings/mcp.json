@@ -16,7 +16,8 @@
         "execute_sql",
         "list_extensions",
         "list_edge_functions",
-        "get_edge_function"
+        "get_edge_function",
+        "get_logs"
       ]
     }
   }

@@ -37,7 +37,7 @@ export default function Sidebar() {
   const { user, role, signOut } = useAuth()
   const navigate = useNavigate()
 
-  const navItems: NavItem[] = (role && NAV_ITEMS_BY_ROLE[role]) ?? []
+  const navItems: NavItem[] = (role ? NAV_ITEMS_BY_ROLE[role] : null) ?? []
 
   const handleSignOut = async () => {
     await signOut()

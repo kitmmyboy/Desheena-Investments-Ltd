@@ -103,7 +103,8 @@ async function sendSms(
   serviceRoleKey: string,
   phone: string,
   message: string,
-  eventType: string
+  eventType: string,
+  referenceId?: string
 ): Promise<void> {
   try {
     const sendSmsUrl = supabaseUrl + "/functions/v1/send-sms";
@@ -113,7 +114,7 @@ async function sendSms(
         "Content-Type": "application/json",
         "Authorization": "Bearer " + serviceRoleKey,
       },
-      body: JSON.stringify({ phone, message, event_type: eventType }),
+      body: JSON.stringify({ phone, message, event_type: eventType, reference_id: referenceId }),
     });
 
     if (!res.ok) {
@@ -362,7 +363,7 @@ async function handleConfirmedPayment(
       ". Ref: " + invoiceId + ". Date: " + paymentDate +
       ". Thank you for paying Desheena Investments Ltd.";
 
-    await sendSms(supabaseUrl, serviceRoleKey, clientPhone, smsMessage, "payment_confirmed");
+    await sendSms(supabaseUrl, serviceRoleKey, clientPhone, smsMessage, "payment_confirmed", invoiceId);
   } else {
     console.log("[pesapal-webhook] Client " + clientName + " has no phone, skipping SMS receipt.");
   }

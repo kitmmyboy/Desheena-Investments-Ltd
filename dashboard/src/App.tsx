@@ -38,6 +38,21 @@ const BillingPage = lazy(() =>
   import('./features/billing').then((m) => ({ default: m.BillingPage }))
 )
 
+// SmsLogPage contains the SMS log table with filters
+const SmsLogPage = lazy(() =>
+  import('./features/sms').then((m) => ({ default: m.SmsLogPage }))
+)
+
+// ReportsPage contains financial charts, driver performance, and collections report
+const ReportsPage = lazy(() =>
+  import('./features/reports').then((m) => ({ default: m.ReportsPage }))
+)
+
+// ComplaintsPage contains the complaints list with TanStack Table and detail panel
+const ComplaintsPage = lazy(() =>
+  import('./features/complaints').then((m) => ({ default: m.ComplaintsPage }))
+)
+
 // ---------------------------------------------------------------------------
 // Loading fallback shown while lazy chunks are fetched
 // ---------------------------------------------------------------------------
@@ -69,18 +84,6 @@ function PageLoader() {
       Loading…
     </div>
   )
-}
-
-function ReportsPage() {
-  return <div className="text-gray-700"><h2 className="text-xl font-semibold">Reports</h2></div>
-}
-
-function ComplaintsPage() {
-  return <div className="text-gray-700"><h2 className="text-xl font-semibold">Complaints</h2></div>
-}
-
-function SmsLogPage() {
-  return <div className="text-gray-700"><h2 className="text-xl font-semibold">SMS Log</h2></div>
 }
 
 function UsersPage() {
@@ -182,7 +185,9 @@ export default function App() {
               path="complaints"
               element={
                 <ProtectedRoute allowedRoles={[ADMIN, OPS]}>
-                  <ComplaintsPage />
+                  <Suspense fallback={<PageLoader />}>
+                    <ComplaintsPage />
+                  </Suspense>
                 </ProtectedRoute>
               }
             />
@@ -202,7 +207,9 @@ export default function App() {
               path="reports"
               element={
                 <ProtectedRoute allowedRoles={[ADMIN, FINANCE]}>
-                  <ReportsPage />
+                  <Suspense fallback={<PageLoader />}>
+                    <ReportsPage />
+                  </Suspense>
                 </ProtectedRoute>
               }
             />
@@ -210,7 +217,9 @@ export default function App() {
               path="sms-log"
               element={
                 <ProtectedRoute allowedRoles={[ADMIN, FINANCE]}>
-                  <SmsLogPage />
+                  <Suspense fallback={<PageLoader />}>
+                    <SmsLogPage />
+                  </Suspense>
                 </ProtectedRoute>
               }
             />

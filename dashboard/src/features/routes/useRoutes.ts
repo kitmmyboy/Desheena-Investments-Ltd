@@ -214,7 +214,7 @@ export function useRemoveClientFromRoute() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ routeClientId, routeId }: RemoveClientInput & { routeId: string }) => {
+    mutationFn: async ({ routeClientId }: RemoveClientInput & { routeId: string }) => {
       const { error } = await supabase
         .from('route_clients')
         .delete()

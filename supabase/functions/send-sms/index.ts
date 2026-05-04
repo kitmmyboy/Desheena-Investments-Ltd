@@ -15,6 +15,8 @@ interface SendSmsRequest {
   phone: string;
   message: string;
   event_type: EventType;
+  /** Optional UUID reference to the related invoice, payment, or complaint */
+  reference_id?: string;
 }
 
 interface SendSmsResponse {
@@ -35,6 +37,10 @@ interface SendSmsResponse {
  * POST https://api.africastalking.com/version1/messaging
  * Headers: apiKey, Accept: application/json, Content-Type: application/x-www-form-urlencoded
  * Body: username, to, message, from (optional sender ID)
+ *
+ * Sandbox vs production is controlled by AT_ENVIRONMENT env var:
+ *   - "sandbox" → https://api.sandbox.africastalking.com/version1/messaging
+ *   - anything else (or unset) → https://api.africastalking.com/version1/messaging
  */
 async function sendViaAfricasTalking(
   phone: string,
@@ -43,10 +49,16 @@ async function sendViaAfricasTalking(
   const apiKey = Deno.env.get("AT_API_KEY");
   const username = Deno.env.get("AT_USERNAME");
   const senderId = Deno.env.get("AT_SENDER_ID");
+  const environment = Deno.env.get("AT_ENVIRONMENT") ?? "production";
 
   if (!apiKey || !username) {
     throw new Error("AT_API_KEY or AT_USERNAME not configured");
   }
+
+  const baseUrl =
+    environment === "sandbox"
+      ? "https://api.sandbox.africastalking.com/version1/messaging"
+      : "https://api.africastalking.com/version1/messaging";
 
   // Build form-encoded body
   const params = new URLSearchParams();
@@ -57,18 +69,15 @@ async function sendViaAfricasTalking(
     params.set("from", senderId);
   }
 
-  const res = await fetch(
-    "https://api.africastalking.com/version1/messaging",
-    {
-      method: "POST",
-      headers: {
-        apiKey: apiKey,
-        Accept: "application/json",
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: params.toString(),
-    }
-  );
+  const res = await fetch(baseUrl, {
+    method: "POST",
+    headers: {
+      apiKey: apiKey,
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: params.toString(),
+  });
 
   const responseText = await res.text();
 
@@ -93,7 +102,9 @@ async function sendViaAfricasTalking(
   try {
     responseJson = JSON.parse(responseText);
   } catch {
-    throw new Error("Failed to parse Africa's Talking response: " + responseText);
+    throw new Error(
+      "Failed to parse Africa's Talking response: " + responseText
+    );
   }
 
   const recipients = responseJson?.SMSMessageData?.Recipients;
@@ -108,8 +119,12 @@ async function sendViaAfricasTalking(
   // statusCode 101 = success in Africa's Talking
   if (recipient.statusCode !== 101) {
     throw new Error(
-      "Africa's Talking delivery failed for " + phone +
-        ": status=" + recipient.status + ", code=" + recipient.statusCode
+      "Africa's Talking delivery failed for " +
+        phone +
+        ": status=" +
+        recipient.status +
+        ", code=" +
+        recipient.statusCode
     );
   }
 
@@ -151,8 +166,14 @@ async function sendWithRetry(
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
       console.warn(
-        "[send-sms] Attempt " + attempt + "/" + maxAttempts +
-          " failed for " + phone + ": " + lastError.message
+        "[send-sms] Attempt " +
+          attempt +
+          "/" +
+          maxAttempts +
+          " failed for " +
+          phone +
+          ": " +
+          lastError.message
       );
     }
   }
@@ -167,7 +188,11 @@ async function sendWithRetry(
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method !== "POST") {
     return new Response(
-      JSON.stringify({ success: false, message_id: "", error: "Method not allowed" }),
+      JSON.stringify({
+        success: false,
+        message_id: "",
+        error: "Method not allowed",
+      }),
       { status: 405, headers: { "Content-Type": "application/json" } }
     );
   }
@@ -177,12 +202,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
     body = await req.json();
   } catch {
     return new Response(
-      JSON.stringify({ success: false, message_id: "", error: "Invalid JSON body" }),
+      JSON.stringify({
+        success: false,
+        message_id: "",
+        error: "Invalid JSON body",
+      }),
       { status: 400, headers: { "Content-Type": "application/json" } }
     );
   }
 
-  const { phone, message, event_type } = body;
+  const { phone, message, event_type, reference_id } = body;
 
   if (!phone || !message || !event_type) {
     return new Response(
@@ -206,7 +235,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       JSON.stringify({
         success: false,
         message_id: "",
-        error: "Invalid event_type. Must be one of: " + validEventTypes.join(", "),
+        error:
+          "Invalid event_type. Must be one of: " + validEventTypes.join(", "),
       }),
       { status: 400, headers: { "Content-Type": "application/json" } }
     );
@@ -227,7 +257,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!apiKey) {
     console.log(
       "[send-sms] MOCK MODE — AT_API_KEY not set. Logging SMS as sent. " +
-        "phone=" + phone + ", event_type=" + event_type + ", message=" + message
+        "phone=" +
+        phone +
+        ", event_type=" +
+        event_type +
+        ", message=" +
+        message
     );
 
     const mockMessageId = "mock-" + crypto.randomUUID();
@@ -236,6 +271,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       recipient_phone: phone,
       message_content: message,
       event_type: event_type,
+      related_id: reference_id ?? null,
       delivery_status: "sent",
       africas_talking_id: mockMessageId,
       attempt_count: 1,
@@ -243,10 +279,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
 
     if (logError) {
-      console.error("[send-sms] Failed to insert mock SMS log:", logError.message);
+      console.error(
+        "[send-sms] Failed to insert mock SMS log:",
+        logError.message
+      );
     }
 
-    const response: SendSmsResponse = { success: true, message_id: mockMessageId };
+    const response: SendSmsResponse = {
+      success: true,
+      message_id: mockMessageId,
+    };
     return new Response(JSON.stringify(response), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -264,6 +306,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       recipient_phone: phone,
       message_content: message,
       event_type: event_type,
+      related_id: reference_id ?? null,
       delivery_status: "sent",
       africas_talking_id: messageId,
       attempt_count: attemptCount,
@@ -275,10 +318,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     console.log(
-      "[send-sms] SMS sent successfully. phone=" + phone +
-        ", event_type=" + event_type +
-        ", message_id=" + messageId +
-        ", attempts=" + attemptCount
+      "[send-sms] SMS sent successfully. phone=" +
+        phone +
+        ", event_type=" +
+        event_type +
+        ", message_id=" +
+        messageId +
+        ", attempts=" +
+        attemptCount
     );
 
     const response: SendSmsResponse = { success: true, message_id: messageId };
@@ -294,15 +341,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
       recipient_phone: phone,
       message_content: message,
       event_type: event_type,
+      related_id: reference_id ?? null,
       delivery_status: "failed",
       africas_talking_id: null,
-      attempt_count: 3, // exhausted all retries
+      attempt_count: 3, // exhausted all inline retries
       error_code: errorMessage.substring(0, 500),
       sent_at: null,
     });
 
     if (logError) {
-      console.error("[send-sms] Failed to insert failure SMS log:", logError.message);
+      console.error(
+        "[send-sms] Failed to insert failure SMS log:",
+        logError.message
+      );
     }
 
     console.error(

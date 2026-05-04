@@ -166,7 +166,7 @@ export function useDefaulters(): {
       const map = new Map<string, Defaulter>()
 
       for (const row of rows ?? []) {
-        const clientData = row.clients as { name: string; phone: string } | null
+        const clientData = (row.clients as unknown) as { name: string; phone: string } | null
         const existing = map.get(row.client_id)
         if (existing) {
           existing.total_outstanding += row.amount

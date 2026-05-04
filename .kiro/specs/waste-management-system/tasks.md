@@ -321,7 +321,7 @@ Implement automated monthly invoice generation, Pesapal payment integration, PDF
     - Test failed payment retains invoice status as "unpaid"
     - _Requirements: 11.3, 11.5, 11.6_
 
-- [ ] 30. Implement Africa's Talking SMS integration
+- [x] 30. Implement Africa's Talking SMS integration
   - Create a reusable SMS service (Supabase Edge Function or server-side module) that calls the Africa's Talking API
   - Implement SMS triggers for: new invoice generated (amount, due date, payment reference), invoice overdue reminder, payment confirmed receipt
   - Log all outbound SMS in `sms_log` table: recipient phone, message content, timestamp, Africa's Talking message ID, delivery status
@@ -333,19 +333,19 @@ Implement automated monthly invoice generation, Pesapal payment integration, PDF
     - Test retry logic stops after 3 attempts within 24 hours
     - _Requirements: 12.4, 12.5_
 
-- [ ] 31. Implement SMS log screen in Admin Dashboard
+- [x] 31. Implement SMS log screen in Admin Dashboard
   - Build SMS log screen with TanStack Table: recipient phone, message content, timestamp, delivery status
   - Implement filters: date range, recipient, delivery status
   - _Requirements: 12.6_
 
-- [ ] 32. Implement financial and driver performance reports
+- [x] 32. Implement financial and driver performance reports
   - Build financial report screen: total invoiced per month, total collected per month, outstanding balance, defaulter count (use Recharts for charts)
   - Build driver performance report: collections per driver per day, total weight per driver, routes completed
   - Build collections report with CSV and PDF export, filterable by date range, driver, route, zone
   - Implement single-button CSV export for all tabular reports
   - _Requirements: 14.2, 14.3, 14.4, 14.5, 14.6_
 
-- [ ] 33. Phase 3 Checkpoint — Ensure all tests pass
+- [x] 33. Phase 3 Checkpoint — Ensure all tests pass
   - Ensure all unit and integration tests pass
   - Verify automated invoice generation creates correct records on the first of the month
   - Verify Pesapal webhook correctly updates invoice status and creates payment record
@@ -361,7 +361,7 @@ Implement the Flutter Customer Portal, complaint management in both mobile and d
 
 ---
 
-- [ ] 34. Implement Flutter Customer Portal
+- [x] 34. Implement Flutter Customer Portal
   - Build Customer Portal view (shown when user role = Customer after login)
   - Display active invoices list: invoice period, amount (UGX), due date, payment status (paid/unpaid/overdue)
   - Display payment history
@@ -369,13 +369,13 @@ Implement the Flutter Customer Portal, complaint management in both mobile and d
   - Display notification badge when a new invoice is generated or a complaint status changes
   - _Requirements: 20.1, 20.2, 20.7, 20.8_
 
-- [ ] 35. Implement Pesapal payment flow in Customer Portal
+- [x] 35. Implement Pesapal payment flow in Customer Portal
   - Build "Pay Now" button on unpaid invoices in the Customer Portal
   - On tap, initiate Pesapal payment flow and redirect to Pesapal-hosted payment page
   - On payment confirmation callback, update invoice status to "paid" in Local_DB and display a payment confirmation screen
   - _Requirements: 20.3, 20.4, 11.1, 11.2_
 
-- [ ] 36. Implement complaint submission and tracking in Flutter
+- [x] 36. Implement complaint submission and tracking in Flutter
   - Build complaint submission form in Customer Portal: message text (max 1000 characters), category dropdown (missed collection, billing dispute, service quality, other)
   - On submit, insert complaint into Supabase `complaints` table with: UUID, client_id, message, category, status "open", created_at
   - Build complaint history view showing status per complaint (open/in-progress/resolved)
@@ -386,18 +386,18 @@ Implement the Flutter Customer Portal, complaint management in both mobile and d
     - Test complaint record is inserted with status "open"
     - _Requirements: 13.1, 13.2_
 
-- [ ] 37. Implement complaint management in Admin Dashboard
+- [x] 37. Implement complaint management in Admin Dashboard
   - Build complaints list screen using TanStack Table: client name, category, message preview, status, created_at
   - Implement filters: status (open/in-progress/resolved), category, date range
   - Build complaint detail view with status update form: set status to "resolved", enter resolution notes; on save, record resolver user_id, resolution_notes, resolved_at
   - _Requirements: 13.3, 13.4, 13.5_
 
-- [ ] 38. Implement SMS notifications for complaint status changes
+- [x] 38. Implement SMS notifications for complaint status changes
   - When a complaint status changes (any transition), send an SMS to the client's registered phone via Africa's Talking informing them of the status update
   - Reuse the SMS service implemented in task 30
   - _Requirements: 13.6_
 
-- [ ] 39. Implement Admin Dashboard in-app notifications
+- [x] 39. Implement Admin Dashboard in-app notifications
   - Build notification bell/panel component in the Admin Dashboard header
   - Subscribe to Supabase Realtime on the `notifications` table
   - Trigger in-app notification when: a Driver has no collections recorded for a scheduled route by 14:00 local time (implement a scheduled check via Edge Function or `pg_cron`), pending sync records across all drivers exceed 50, a new complaint is submitted
@@ -410,7 +410,7 @@ Implement the Flutter Customer Portal, complaint management in both mobile and d
     - Test that a notification is created when a new complaint is submitted
     - _Requirements: 18.2, 18.3_
 
-- [ ] 40. Final Checkpoint — Ensure all tests pass
+- [x] 40. Final Checkpoint — Ensure all tests pass
   - Ensure all unit and integration tests pass across all four phases
   - Verify Customer Portal displays invoices and complaint history offline
   - Verify complaint status change triggers SMS notification to client
@@ -421,7 +421,8 @@ Implement the Flutter Customer Portal, complaint management in both mobile and d
 
 ## Notes
 
-- Tasks marked with `*` are optional and can be skipped for a faster MVP delivery
+
+ Tasks marked with `*` are optional and can be skipped for a faster MVP delivery
 - Each phase is independently deployable and testable per Requirement 22.5
 - The Supabase schema created in Phase 1 (task 1) is designed to support all four phases without destructive migrations
 - All UUID primary keys use UUID v4 to prevent duplicate insertions during offline sync retries

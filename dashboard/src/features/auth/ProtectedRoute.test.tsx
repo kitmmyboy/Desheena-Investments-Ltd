@@ -24,23 +24,6 @@ function mockUseAuth(state: MockAuthState) {
   vi.spyOn(AuthContextModule, 'useAuth').mockReturnValue(state as ReturnType<typeof AuthContextModule.useAuth>)
 }
 
-function renderWithRouter(
-  element: React.ReactNode,
-  { initialPath = '/' }: { initialPath?: string } = {}
-) {
-  return render(
-    <MemoryRouter initialEntries={[initialPath]}>
-      <Routes>
-        <Route path="/login" element={<div>Login Page</div>} />
-        <Route path="/dashboard" element={element} />
-        <Route path="/dashboard/routes" element={element} />
-        <Route path="/dashboard/billing" element={element} />
-        <Route path="/" element={element} />
-      </Routes>
-    </MemoryRouter>
-  )
-}
-
 const baseAuth: MockAuthState = {
   user: { email: 'test@example.com' },
   role: null,

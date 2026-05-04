@@ -10,7 +10,8 @@ async function sendSms(
   serviceRoleKey: string,
   phone: string,
   message: string,
-  eventType: string
+  eventType: string,
+  referenceId?: string
 ): Promise<void> {
   try {
     const sendSmsUrl = supabaseUrl + "/functions/v1/send-sms";
@@ -20,11 +21,12 @@ async function sendSms(
         "Content-Type": "application/json",
         "Authorization": "Bearer " + serviceRoleKey,
       },
-      body: JSON.stringify({ phone, message, event_type: eventType }),
+      body: JSON.stringify({ phone, message, event_type: eventType, reference_id: referenceId }),
     });
 
     if (!res.ok) {
-      const text = await res.text();\n      console.error("[mark-overdue-invoices] send-sms returned non-OK status " + res.status + ": " + text);
+      const text = await res.text();
+      console.error("[mark-overdue-invoices] send-sms returned non-OK status " + res.status + ": " + text);
     } else {
       const result = await res.json();
       if (!result.success) {
@@ -102,7 +104,7 @@ Deno.serve(async (_req: Request) => {
             " is now OVERDUE (due " + invoice.due_date + "). " +
             "Please pay immediately to avoid service suspension. Ref: " + invoice.id;
 
-          await sendSms(supabaseUrl, supabaseServiceKey, phone, smsMessage, "invoice_overdue");
+          await sendSms(supabaseUrl, supabaseServiceKey, phone, smsMessage, "invoice_overdue", invoice.id);
         }
       }
     }

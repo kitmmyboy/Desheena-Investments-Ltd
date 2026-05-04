@@ -40,7 +40,8 @@ async function sendSms(
   serviceRoleKey: string,
   phone: string,
   message: string,
-  eventType: string
+  eventType: string,
+  referenceId?: string
 ): Promise<void> {
   try {
     const sendSmsUrl = supabaseUrl + "/functions/v1/send-sms";
@@ -50,7 +51,7 @@ async function sendSms(
         "Content-Type": "application/json",
         "Authorization": "Bearer " + serviceRoleKey,
       },
-      body: JSON.stringify({ phone, message, event_type: eventType }),
+      body: JSON.stringify({ phone, message, event_type: eventType, reference_id: referenceId }),
     });
 
     if (!res.ok) {
@@ -208,7 +209,7 @@ Deno.serve(async (req: Request) => {
           ' is UGX ' + Number(amount).toLocaleString() + '. Due date: ' + dueDateStr +
           '. Ref: ' + (invoice?.id ?? 'N/A') + '. Pay via Pesapal or contact us.';
 
-        await sendSms(supabaseUrl, serviceRoleKey, client.phone, smsMessage, 'invoice_generated');
+        await sendSms(supabaseUrl, serviceRoleKey, client.phone, smsMessage, 'invoice_generated', invoice?.id);
       } else {
         console.log('[generate-monthly-invoices] Client ' + client.name + ' has no phone number, skipping SMS.');
       }

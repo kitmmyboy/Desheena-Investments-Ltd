@@ -1,4 +1,3 @@
-import React from 'react'
 import type { CollectionsFiltersState } from './useCollections'
 
 interface CollectionsFiltersProps {
