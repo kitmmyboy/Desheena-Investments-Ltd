@@ -1,8 +1,11 @@
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import { NotificationBell } from '../features/notifications'
+import { useAppBranding } from '../hooks'
 
 export default function DashboardLayout() {
+  useAppBranding()
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
