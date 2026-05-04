@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { useCreateClient, useUpdateClient } from './useClients'
 import type { ClientWithContractStatus, CreateClientInput } from './useClients'
+import ContractPanel from './ContractPanel'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -341,6 +342,11 @@ export default function ClientForm({ client, onClose, onSuccess }: ClientFormPro
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </Field>
+
+      {/* Contract section — edit mode only */}
+      {isEdit && client && (
+        <ContractPanel clientId={client.id} />
+      )}
 
       {/* Actions */}
       <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">

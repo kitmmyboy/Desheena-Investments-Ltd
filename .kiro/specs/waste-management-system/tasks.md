@@ -235,13 +235,13 @@ Build the React Admin Dashboard with authentication, RBAC navigation, collection
     - Test import summary counts are accurate
     - _Requirements: 15.2, 15.4, 15.5, 15.7_
 
-- [-] 21. Implement contract management
+- [x] 21. Implement contract management
   - Build contract detail view on the client detail screen showing: rate, start date, billing cycle, status
   - Implement contract create form: start date, billing cycle (monthly), rate (UGX), billing model (flat or frequency-based), status
   - On contract status change to "suspended" or "terminated", update Supabase `contracts` table; invoice generation logic must check contract status before generating
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6_
 
-- [ ] 22. Implement route management
+- [x] 22. Implement route management
   - Build route list screen: route name, zone, assigned driver, client count
   - Build route create form: route name, zone
   - Build route detail screen with ordered client list and OpenStreetMap view showing client GPS pins
@@ -250,13 +250,13 @@ Build the React Admin Dashboard with authentication, RBAC navigation, collection
   - When a route is updated in Supabase, the Driver App will download the updated route on next sync (no additional dashboard work needed beyond saving to Supabase)
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
 
-- [ ] 23. Implement Admin Dashboard performance optimizations
+- [x] 23. Implement Admin Dashboard performance optimizations
   - Verify TanStack Table uses server-side pagination, sorting, and filtering for all tables
   - Verify virtualized rendering is active for tables with more than 100 rows
   - Measure initial dashboard load time; optimize React Query cache settings and lazy-load heavy components (map, charts) to achieve under 3 seconds on broadband
   - _Requirements: 19.2, 19.7, 19.8_
 
-- [ ] 24. Phase 2 Checkpoint — Ensure all tests pass
+- [x] 24. Phase 2 Checkpoint — Ensure all tests pass
   - Ensure all unit and integration tests pass
   - Verify RBAC navigation hides/shows correct menu items per role
   - Verify Realtime collections updates appear without page refresh
@@ -271,7 +271,7 @@ Implement automated monthly invoice generation, Pesapal payment integration, PDF
 
 ---
 
-- [ ] 25. Implement automated monthly invoice generation
+- [x] 25. Implement automated monthly invoice generation
   - Create a Supabase Edge Function (or scheduled PostgreSQL function via `pg_cron`) that runs on the first day of each calendar month
   - Query all clients with active contracts; for each, generate an invoice record in the `invoices` table with: client_id, amount, due_date (14 days after generation), status ("unpaid"), UUID
   - For flat billing contracts: set amount = contract monthly_rate
@@ -285,19 +285,19 @@ Implement automated monthly invoice generation, Pesapal payment integration, PDF
     - Test due_date is exactly 14 days after generation date
     - _Requirements: 10.2, 10.3, 10.4_
 
-- [ ] 26. Implement overdue invoice status update
+- [x] 26. Implement overdue invoice status update
   - Create a Supabase Edge Function (or `pg_cron` job) that runs daily and updates invoice status to "overdue" for all invoices where `due_date < now()` and `status = "unpaid"`
   - After marking an invoice overdue, trigger SMS reminder to the client (see task 30)
   - _Requirements: 10.6, 12.2_
 
-- [ ] 27. Implement invoice list and manual invoice generation in Admin Dashboard
+- [x] 27. Implement invoice list and manual invoice generation in Admin Dashboard
   - Build invoice list screen using TanStack Table: client name, invoice period, amount (UGX), due date, status (paid/unpaid/overdue)
   - Build manual invoice generation form for Finance users: select client, set period and amount
   - Build defaulters report: list all clients with one or more overdue invoices, showing total outstanding balance
   - Implement CSV export of invoice list
   - _Requirements: 10.5, 10.7, 10.8, 10.10_
 
-- [ ] 28. Implement PDF invoice generation
+- [x] 28. Implement PDF invoice generation
   - Implement PDF generation (using a Supabase Edge Function with a PDF library, or a client-side library) producing invoices with: Desheena Investments Ltd header, client details, itemized services, amount (UGX), VAT line (if applicable), due date, payment instructions
   - Expose a download endpoint or button in the Admin Dashboard invoice detail view
   - _Requirements: 10.9, 14.6_
@@ -306,7 +306,7 @@ Implement automated monthly invoice generation, Pesapal payment integration, PDF
     - Test that generated PDF contains client name, amount, due date, and VAT line
     - _Requirements: 10.9_
 
-- [ ] 29. Implement Pesapal payment integration
+- [x] 29. Implement Pesapal payment integration
   - Create a Supabase Edge Function as the Pesapal webhook endpoint (HTTPS, signature-verified)
   - On payment initiation (Finance user or Customer): submit payment request to Pesapal API with amount (UGX), currency "UGX", customer phone, customer email, transaction_ref derived from invoice UUID
   - Redirect user to Pesapal-hosted payment page or display Pesapal popup

@@ -13,7 +13,10 @@
         "get_advisors",
         "list_migrations",
         "deploy_edge_function",
-        "execute_sql"
+        "execute_sql",
+        "list_extensions",
+        "list_edge_functions",
+        "get_edge_function"
       ]
     }
   }

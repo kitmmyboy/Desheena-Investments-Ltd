@@ -1,17 +1,74 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './features/auth/AuthContext'
 import LoginPage from './features/auth/LoginPage'
 import ProtectedRoute from './features/auth/ProtectedRoute'
 import DashboardLayout from './components/DashboardLayout'
-import { CollectionsPage, KpiPanel } from './features/collections'
-import { ClientsPage, CsvImportPage } from './features/clients'
+import { CsvImportPage } from './features/clients'
 
-function RoutesPage() {
-  return <div className="text-gray-700"><h2 className="text-xl font-semibold">Routes</h2></div>
-}
+// ---------------------------------------------------------------------------
+// Lazy-loaded heavy components (maps + charts)
+// ---------------------------------------------------------------------------
 
-function BillingPage() {
-  return <div className="text-gray-700"><h2 className="text-xl font-semibold">Billing</h2></div>
+// CollectionsPage contains a Leaflet map and a large TanStack Table
+const CollectionsPage = lazy(() =>
+  import('./features/collections').then((m) => ({ default: m.CollectionsPage }))
+)
+
+// KpiPanel contains Recharts visualisations
+const KpiPanel = lazy(() =>
+  import('./features/collections').then((m) => ({ default: m.KpiPanel }))
+)
+
+// ClientsPage contains a Leaflet map and a large TanStack Table
+const ClientsPage = lazy(() =>
+  import('./features/clients').then((m) => ({ default: m.ClientsPage }))
+)
+
+// RoutesPage and RouteDetailPage contain Leaflet maps
+const RoutesPage = lazy(() =>
+  import('./features/routes').then((m) => ({ default: m.RoutesPage }))
+)
+const RouteDetailPage = lazy(() =>
+  import('./features/routes').then((m) => ({ default: m.RouteDetailPage }))
+)
+
+// BillingPage contains invoice management and defaulters report
+const BillingPage = lazy(() =>
+  import('./features/billing').then((m) => ({ default: m.BillingPage }))
+)
+
+// ---------------------------------------------------------------------------
+// Loading fallback shown while lazy chunks are fetched
+// ---------------------------------------------------------------------------
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
+      <svg
+        className="animate-spin h-5 w-5 mr-2 text-blue-500"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+      >
+        <circle
+          className="opacity-25"
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          strokeWidth="4"
+        />
+        <path
+          className="opacity-75"
+          fill="currentColor"
+          d="M4 12a8 8 0 018-8v8H4z"
+        />
+      </svg>
+      Loading…
+    </div>
+  )
 }
 
 function ReportsPage() {
@@ -63,14 +120,23 @@ export default function App() {
             }
           >
             {/* Home — any authenticated dashboard role */}
-            <Route index element={<KpiPanel />} />
+            <Route
+              index
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <KpiPanel />
+                </Suspense>
+              }
+            />
 
             {/* Operations routes */}
             <Route
               path="collections"
               element={
                 <ProtectedRoute allowedRoles={[ADMIN, OPS]}>
-                  <CollectionsPage />
+                  <Suspense fallback={<PageLoader />}>
+                    <CollectionsPage />
+                  </Suspense>
                 </ProtectedRoute>
               }
             />
@@ -78,7 +144,9 @@ export default function App() {
               path="clients"
               element={
                 <ProtectedRoute allowedRoles={[ADMIN, OPS]}>
-                  <ClientsPage />
+                  <Suspense fallback={<PageLoader />}>
+                    <ClientsPage />
+                  </Suspense>
                 </ProtectedRoute>
               }
             />
@@ -94,7 +162,19 @@ export default function App() {
               path="routes"
               element={
                 <ProtectedRoute allowedRoles={[ADMIN, OPS]}>
-                  <RoutesPage />
+                  <Suspense fallback={<PageLoader />}>
+                    <RoutesPage />
+                  </Suspense>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="routes/:routeId"
+              element={
+                <ProtectedRoute allowedRoles={[ADMIN, OPS]}>
+                  <Suspense fallback={<PageLoader />}>
+                    <RouteDetailPage />
+                  </Suspense>
                 </ProtectedRoute>
               }
             />
@@ -112,7 +192,9 @@ export default function App() {
               path="billing"
               element={
                 <ProtectedRoute allowedRoles={[ADMIN, FINANCE]}>
-                  <BillingPage />
+                  <Suspense fallback={<PageLoader />}>
+                    <BillingPage />
+                  </Suspense>
                 </ProtectedRoute>
               }
             />
