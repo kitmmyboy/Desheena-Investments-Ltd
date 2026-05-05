@@ -48,7 +48,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="flex flex-col w-64 min-h-screen bg-gray-900 text-white">
+    <aside className="flex flex-col w-64 h-screen shrink-0 bg-gray-900 text-white overflow-hidden">
       {/* Logo / brand */}
       <div className="px-6 py-5 border-b border-gray-700">
         <span className="text-green-400 font-bold text-lg leading-tight">
