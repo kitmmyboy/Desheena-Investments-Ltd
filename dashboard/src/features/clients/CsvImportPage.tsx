@@ -20,14 +20,13 @@ function downloadTemplate() {
     }
   }
 
-  // ── Fixed columns ───────────────────────────────────────────────────────
+  // ── Fixed columns (zone removed) ───────────────────────────────────────
   const fixedHeaders = [
     "name",
     "phone",
     "email",
     "division_office",
     "location_text",
-    "zone",
     "gps_lat",
     "gps_lng",
     "service_frequency",
@@ -40,17 +39,16 @@ function downloadTemplate() {
 
   // ── Row 2: human-readable labels ────────────────────────────────────────
   const labelRow = [
-    "Client Name *",
+    "Client Name (required)",
     "Phone Number",
     "Email Address",
     "Division / Office",
-    "Location / Address *",
-    "Zone",
+    "Location / Address",
     "GPS Latitude",
     "GPS Longitude",
     "Service Frequency",
     "Registration Fee (UGX)",
-    "Monthly Rate (UGX) *",
+    "Monthly Rate (UGX)",
     "Contract Start Date (YYYY-MM-DD)",
     "Notes",
     ...paymentCols.map((c) => {
@@ -61,78 +59,63 @@ function downloadTemplate() {
 
   // ── Row 3: instructions ─────────────────────────────────────────────────
   const instrRow = [
-    "Required. Full name of client",
-    "e.g. 0772466708 or +256772466708",
+    "Required. Full name of client. All other columns are optional.",
+    "e.g. 0772466708 — must start with 0",
     "Optional",
     "e.g. DIVISION OFFICE, KITO, NSASA",
-    "Required. Street/area address",
-    "e.g. Kito, Naalya, Mbuya",
+    "Street/area address",
     "Optional decimal e.g. 0.3476",
     "Optional decimal e.g. 32.5825",
     "Leave as: monthly",
     "One-time joining fee in UGX (0 if none)",
-    "Required. Monthly charge in UGX",
-    "Required. Format: 2023-01-01",
+    "Monthly charge in UGX",
+    "Format: 2023-01-01",
     "Any extra notes",
     ...paymentCols.map(() => "Amount paid (e.g. 30000), PAID, NIL, or leave blank"),
   ]
 
   // ── Example rows ────────────────────────────────────────────────────────
   const ex1: (string | number)[] = [
-    "MULINDWA", "0772466708", "", "DIVISION OFFICE", "KITO", "Kito",
+    "MULINDWA", "0772466708", "", "DIVISION OFFICE", "KITO",
     "", "", "monthly", 0, 30000, "2023-01-01", "",
-    // 2023: all paid
     30000,30000,30000,30000,30000,30000,30000,30000,30000,30000,30000,30000,
-    // 2024: all paid
     30000,30000,30000,30000,30000,30000,30000,30000,30000,30000,30000,30000,
-    // 2025: paid Jan-Jun, missed Jul-Dec
     30000,30000,30000,30000,30000,30000,"NIL","NIL","NIL","NIL","NIL","NIL",
-    // 2026: blank (not yet)
     "","","","","","","","","","","","",
   ]
 
   const ex2: (string | number)[] = [
-    "CAPTAIN NEWMAN ALEXANDRA", "0784921801", "captain@example.com", "DIVISION OFFICE", "KITO", "Kito",
+    "CAPTAIN NEWMAN ALEXANDRA", "0784921801", "captain@example.com", "DIVISION OFFICE", "KITO",
     "", "", "monthly", 50000, 20000, "2023-01-01", "Paid registration Jan 2023",
-    // 2023: all paid
     20000,20000,20000,20000,20000,20000,20000,20000,20000,20000,20000,20000,
-    // 2024: paid Jan-Sep, partial Oct (10000), missed Nov-Dec
     20000,20000,20000,20000,20000,20000,20000,20000,20000,10000,"NIL","NIL",
-    // 2025: paid Jan-May, rest blank
     20000,20000,20000,20000,20000,"","","","","","","",
-    // 2026: blank
     "","","","","","","","","","","","",
   ]
 
   const ex3: (string | number)[] = [
-    "GABRIEL ANISA", "0773663839", "", "DIVISION OFFICE", "KITO", "Kito",
+    "GABRIEL ANISA", "0773663839", "", "DIVISION OFFICE", "KITO",
     "", "", "monthly", 0, 20000, "2023-01-01", "",
-    // 2023: all paid
     "PAID","PAID","PAID","PAID","PAID","PAID","PAID","PAID","PAID","PAID","PAID","PAID",
-    // 2024: all paid
     "PAID","PAID","PAID","PAID","PAID","PAID","PAID","PAID","PAID","PAID","PAID","PAID",
-    // 2025: paid Jan-Apr, rest blank
     "PAID","PAID","PAID","PAID","","","","","","","","",
-    // 2026: blank
     "","","","","","","","","","","","",
   ]
 
   // ── Build worksheet ─────────────────────────────────────────────────────
   const ws = XLSX.utils.aoa_to_sheet([
-    allHeaders,   // row 1: machine-readable keys (used by parser)
-    labelRow,     // row 2: human labels (for reference — parser skips this)
-    instrRow,     // row 3: instructions (parser skips this)
+    allHeaders,
+    labelRow,
+    instrRow,
     ex1,
     ex2,
     ex3,
   ])
 
-  // ── Column widths ───────────────────────────────────────────────────────
-  const fixedWidths = [28, 18, 24, 20, 28, 14, 12, 12, 16, 22, 18, 28, 24]
+  // ── Column widths (zone column removed) ────────────────────────────────
+  const fixedWidths = [28, 18, 24, 20, 28, 12, 12, 16, 22, 18, 28, 24]
   const paymentWidths = paymentCols.map(() => 10)
   ws["!cols"] = [...fixedWidths, ...paymentWidths].map((w) => ({ wch: w }))
-
-  // ── Freeze first row + first column ────────────────────────────────────
   ws["!freeze"] = { xSplit: 1, ySplit: 1, topLeftCell: "B2", activePane: "bottomRight" }
 
   XLSX.utils.book_append_sheet(wb, ws, "Clients")
@@ -144,53 +127,45 @@ function downloadTemplate() {
     ["HOW TO USE THIS TEMPLATE"],
     [""],
     ["1. Fill in the 'Clients' sheet. Do NOT change the column headers in Row 1."],
-    ["2. Row 2 (labels) and Row 3 (instructions) are for reference — delete them before uploading if you want, or leave them (the system skips non-data rows)."],
+    ["2. Row 2 (labels) and Row 3 (instructions) are for reference only — the system skips them."],
     ["3. Delete the 3 example rows (rows 4, 5, 6) before filling in your real data."],
     [""],
     ["REQUIRED COLUMNS"],
-    ["name", "Full name of the client. Required."],
-    ["location_text", "Street address or area. Required."],
-    ["monthly_rate", "Monthly charge in UGX. Required. Must be a number."],
-    ["contract_start_date", "When the contract started. Format: YYYY-MM-DD (e.g. 2023-01-01). Required."],
+    ["name", "Full name of the client. This is the ONLY required field."],
     [""],
     ["OPTIONAL COLUMNS"],
-    ["phone", "Phone number. Formats accepted: 0772466708, +256772466708, 772466708"],
-    ["email", "Email address (optional)"],
-    ["division_office", "The division or office this client belongs to (e.g. DIVISION OFFICE, KITO, NSASA)"],
-    ["zone", "Zone name (e.g. Kito, Naalya, Mbuya). Auto-detected from location if left blank."],
+    ["phone", "Phone number. Must start with 0 (e.g. 0772466708). If you enter 772466708 the system adds the 0 automatically."],
+    ["email", "Email address"],
+    ["division_office", "The division or office (e.g. DIVISION OFFICE, KITO, NSASA)"],
+    ["location_text", "Street address or area"],
     ["registration_fee", "One-time joining/registration fee in UGX. Use 0 if none."],
-    ["service_frequency", "Leave as 'monthly' unless different."],
-    ["notes", "Any extra notes about this client."],
+    ["monthly_rate", "Monthly charge in UGX"],
+    ["contract_start_date", "Format: YYYY-MM-DD (e.g. 2023-01-01)"],
+    ["notes", "Any extra notes"],
     [""],
     ["PAYMENT HISTORY COLUMNS (2023_jan through 2026_dec)"],
     ["", "These columns record what the client paid each month."],
-    ["", ""],
+    [""],
     ["Accepted values:"],
-    ["", "30000", "→ Client paid 30,000 UGX that month (fully paid if matches monthly_rate)"],
-    ["", "10000", "→ Client paid 10,000 UGX (partial payment if less than monthly_rate)"],
-    ["", "PAID", "→ Client paid in full (system uses monthly_rate as the amount)"],
-    ["", "NIL", "→ Client did NOT pay that month (recorded as unpaid/overdue invoice)"],
-    ["", "blank", "→ Leave blank if the client was not yet active that month"],
-    ["", "*", "→ Same as blank — client not active or data not available"],
+    ["", "30000", "→ Client paid 30,000 UGX that month"],
+    ["", "10000", "→ Partial payment"],
+    ["", "PAID", "→ Paid in full (uses monthly_rate as the amount)"],
+    ["", "NIL", "→ Did NOT pay that month (creates overdue invoice)"],
+    ["", "blank", "→ Client not yet active that month (nothing created)"],
     [""],
     ["WHAT GETS CREATED IN THE SYSTEM"],
     ["", "1 client record"],
-    ["", "1 contract record (with monthly rate, registration fee, start date)"],
+    ["", "1 contract record"],
     ["", "1 invoice per month in the payment history"],
     ["", "1 payment record per paid month"],
-    ["", "Unpaid months → overdue invoices (show in billing/defaulters report)"],
-    [""],
-    ["ZONES RECOGNISED"],
-    ["", "Kito, Nsasa, Naalya, Mbuya, Mbalwa, Sonde, Kimbejja, Buwate, Nabusigwe,"],
-    ["", "Janda, Mulawa, Najeera, Kamuli, Kyaliwajala, Namugongo, Dembe, Butenga,"],
-    ["", "Mutungo, Kira, Kapera, Hillview, Goma, Nabwojo, Kiwatule, Bulindo,"],
-    ["", "Magere, Nakiyanja, Nsawo, Mbuto, Lukadde, Kitikifumba"],
+    ["", "Unpaid months → overdue invoices visible in Billing"],
     [""],
     ["TIPS"],
-    ["", "• You can import multiple times — duplicates (same name + phone) are automatically skipped."],
-    ["", "• The system processes everything server-side in batches, so even 1,000+ clients is fast."],
-    ["", "• After import, go to Billing to see outstanding balances and the defaulters report."],
-    ["", "• GPS coordinates are optional — you can add them later via the Clients page."],
+    ["", "• Only name is required — all other fields are optional."],
+    ["", "• Phone numbers are auto-corrected to start with 0."],
+    ["", "• Zone is auto-detected from the location text."],
+    ["", "• Duplicates (same name + phone) are automatically skipped."],
+    ["", "• After import, go to Billing to see outstanding balances."],
   ]
 
   const wsInstr = XLSX.utils.aoa_to_sheet(instrData)
@@ -311,10 +286,16 @@ function cleanPhone(raw: unknown): string | null {
   if (raw == null) return null
   let s = String(raw).trim()
   if (!s) return null
+  // Take first number if multiple separated by /
   s = s.split("/")[0].trim()
+  // Remove spaces, dashes, parentheses, dots
   s = s.replace(/[\s\-().]/g, "")
   if (!s || s.length < 7) return null
-  if (/^0[37]\d{8}$/.test(s)) s = "+256" + s.slice(1)
+  // Strip +256 or 256 country code prefix → normalize to local 0XXXXXXXXX
+  if (s.startsWith("+256")) s = "0" + s.slice(4)
+  else if (s.startsWith("256") && s.length === 12) s = "0" + s.slice(3)
+  // If number doesn't start with 0, add it
+  if (!s.startsWith("0")) s = "0" + s
   return s
 }
 
@@ -326,6 +307,35 @@ function parseAmount(raw: unknown): number {
   if (/^\d+K$/i.test(s)) return parseInt(s) * 1000
   const n = parseFloat(s)
   return isNaN(n) || n < 0 ? 0 : n
+}
+
+// Convert Excel serial date number (e.g. 44928) to YYYY-MM-DD string
+// Excel epoch: Jan 1 1900 = 1 (with the 1900 leap year bug: serial 60 = Feb 29 1900 which didn't exist)
+function excelSerialToDate(serial: number): string {
+  // Adjust for Excel's 1900 leap year bug (serial 60 is phantom Feb 29 1900)
+  const adjusted = serial > 59 ? serial - 1 : serial
+  const msPerDay = 86400000
+  const excelEpoch = new Date(1900, 0, 1).getTime() // Jan 1 1900
+  const date = new Date(excelEpoch + (adjusted - 1) * msPerDay)
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, "0")
+  const d = String(date.getDate()).padStart(2, "0")
+  return `${y}-${m}-${d}`
+}
+
+// Parse a date value that might be a string "2023-01-01", an Excel serial number, or garbage
+function parseDate(raw: unknown, fallback: string): string {
+  if (raw == null || String(raw).trim() === "") return fallback
+  const s = String(raw).trim()
+  // Already a valid date string
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+  // Excel serial number
+  const n = parseFloat(s)
+  if (!isNaN(n) && n > 1000 && n < 100000) return excelSerialToDate(Math.round(n))
+  // Try parsing as a date string
+  const d = new Date(s)
+  if (!isNaN(d.getTime())) return d.toISOString().split("T")[0]
+  return fallback
 }
 
 function detectZone(text: string): string | null {
@@ -549,13 +559,13 @@ function parseTemplateRow(obj: Record<string, string>, defaultStartDate: string)
     email: obj["email"]?.trim() || null,
     division_office: obj["division_office"]?.trim() || null,
     location_text,
-    zone: obj["zone"]?.trim() || detectZone(location_text) || null,
+    zone: detectZone(location_text) || null,
     gps_lat: parseFloat(obj["gps_lat"] ?? "0") || 0,
     gps_lng: parseFloat(obj["gps_lng"] ?? "0") || 0,
     service_frequency: obj["service_frequency"]?.trim() || "monthly",
     registration_fee: parseFloat((obj["registration_fee"] ?? "0").replace(/,/g, "")) || 0,
     monthly_rate,
-    contract_start_date: obj["contract_start_date"]?.trim() || defaultStartDate,
+    contract_start_date: parseDate(obj["contract_start_date"], defaultStartDate),
     notes: obj["notes"]?.trim() || null,
     payment_history,
   }
@@ -651,7 +661,7 @@ function PreviewTable({ clients, onClientChange, globalStartDate, onGlobalStartD
         <table className="min-w-full divide-y divide-gray-200 text-xs">
           <thead className="bg-gray-50">
             <tr>
-              {["#","Name","Phone","Division","Location","Zone","Reg. Fee","Monthly","Start Date","History"].map((h) => (
+              {["#","Name","Phone","Division","Location","Reg. Fee","Monthly","Start Date","History"].map((h) => (
                 <th key={h} className="px-3 py-2 text-left font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -675,10 +685,6 @@ function PreviewTable({ clients, onClientChange, globalStartDate, onGlobalStartD
                   <td className="px-3 py-1.5">
                     <input type="text" value={c.location_text} onChange={(e) => onClientChange(i, { ...c, location_text: e.target.value })}
                       className="w-24 border border-transparent hover:border-gray-300 focus:border-blue-400 rounded px-1 py-0.5 text-xs text-gray-600 bg-transparent focus:bg-white focus:outline-none" />
-                  </td>
-                  <td className="px-3 py-1.5">
-                    <input type="text" value={c.zone ?? ""} onChange={(e) => onClientChange(i, { ...c, zone: e.target.value || null })}
-                      className="w-20 border border-transparent hover:border-gray-300 focus:border-blue-400 rounded px-1 py-0.5 text-xs text-gray-600 bg-transparent focus:bg-white focus:outline-none" />
                   </td>
                   <td className="px-3 py-1.5">
                     <input type="number" value={c.registration_fee} onChange={(e) => onClientChange(i, { ...c, registration_fee: parseFloat(e.target.value) || 0 })}
@@ -820,7 +826,7 @@ export default function CsvImportPage() {
 
       // Check if this is a template sheet (has our headers)
       const row0 = (rows[0] as unknown[] ?? []).map((c) => String(c ?? "").trim().toLowerCase())
-      const isTemplate = row0.includes("name") && row0.includes("monthly_rate")
+      const isTemplate = row0.includes("name")
 
       if (isTemplate) {
         // Row 0 = machine headers, Row 1 = human labels (skip), Row 2 = instructions (skip)

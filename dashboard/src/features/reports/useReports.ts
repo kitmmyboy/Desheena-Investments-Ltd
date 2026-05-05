@@ -222,7 +222,7 @@ export function useCollectionsReport(filters: CollectionsReportFilters) {
           `id, waste_type, weight_kg, collected_at, sync_status,
            clients(name, zone),
            users(full_name, email),
-           route_clients!inner(routes(id, name))`
+           routes(id, name)`
         )
         .order('collected_at', { ascending: false })
         .limit(1000)
@@ -243,17 +243,13 @@ export function useCollectionsReport(filters: CollectionsReportFilters) {
       const { data, error } = await query
 
       if (error) {
-        // If the join fails (e.g. no route_clients), fall back to simpler query
-        if (error.message.includes('route_clients')) {
-          return fetchCollectionsSimple(filters)
-        }
         throw new Error(error.message)
       }
 
       return (data ?? []).map((row: any) => {
         const clientData = row.clients as { name?: string; zone?: string } | null
         const userData = row.users as { full_name?: string; email?: string } | null
-        const routeData = row.route_clients?.[0]?.routes as { name?: string } | null
+        const routeData = row.routes as { name?: string } | null
 
         return {
           id: row.id,
@@ -269,51 +265,6 @@ export function useCollectionsReport(filters: CollectionsReportFilters) {
       })
     },
     staleTime: 2 * 60 * 1000,
-  })
-}
-
-// Fallback query without route join
-async function fetchCollectionsSimple(
-  filters: CollectionsReportFilters
-): Promise<CollectionReportRow[]> {
-  let query = supabase
-    .from('collections')
-    .select(
-      `id, waste_type, weight_kg, collected_at, sync_status,
-       clients(name, zone),
-       users(full_name, email)`
-    )
-    .order('collected_at', { ascending: false })
-    .limit(1000)
-
-  if (filters.dateFrom) {
-    query = query.gte('collected_at', `${filters.dateFrom}T00:00:00`)
-  }
-  if (filters.dateTo) {
-    query = query.lte('collected_at', `${filters.dateTo}T23:59:59`)
-  }
-  if (filters.driverId) {
-    query = query.eq('driver_id', filters.driverId)
-  }
-
-  const { data, error } = await query
-  if (error) throw new Error(error.message)
-
-  return (data ?? []).map((row: any) => {
-    const clientData = row.clients as { name?: string; zone?: string } | null
-    const userData = row.users as { full_name?: string; email?: string } | null
-
-    return {
-      id: row.id,
-      client_name: clientData?.name ?? '—',
-      driver_name: userData?.full_name ?? userData?.email ?? '—',
-      waste_type: row.waste_type ?? '—',
-      weight_kg: row.weight_kg,
-      collected_at: row.collected_at,
-      zone: clientData?.zone ?? '—',
-      sync_status: row.sync_status ?? '—',
-      route_name: '—',
-    }
   })
 }
 
