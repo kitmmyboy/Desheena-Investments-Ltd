@@ -2,15 +2,20 @@ import React, { useEffect, useMemo, useState } from 'react'
 import {
   useReactTable,
   getCoreRowModel,
+  getExpandedRowModel,
   flexRender,
   createColumnHelper,
   type PaginationState,
+  type ExpandedState,
 } from '@tanstack/react-table'
-import { useInvoices, useDefaulters, type Invoice, type Defaulter } from './useInvoices'
+import { useInvoices, type Invoice } from './useInvoices'
+import { useContractDefaulters, type ContractDefaulter, type MonthBreakdown } from './useContractDefaulters'
+import { useContracts, type ContractWithClient, type ContractStatusFilter } from './useContracts'
 import ManualInvoiceForm from './ManualInvoiceForm'
 import InvoicePdfButton from './InvoicePdfButton'
 import { useAuth } from '../auth/AuthContext'
 import { supabase } from '../../lib/supabase'
+import { downloadCsv } from '../../lib/exportCsv'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -168,35 +173,6 @@ function Modal({ onClose, children }: { onClose: () => void; children: React.Rea
       </div>
     </div>
   )
-}
-
-// ---------------------------------------------------------------------------
-// CSV export utility
-// ---------------------------------------------------------------------------
-
-function downloadCsv(filename: string, rows: string[][]): void {
-  const csvContent = rows
-    .map((row) =>
-      row
-        .map((cell) => {
-          const str = String(cell ?? '')
-          // Escape cells that contain commas, quotes, or newlines
-          if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-            return `"${str.replace(/"/g, '""')}"`
-          }
-          return str
-        })
-        .join(',')
-    )
-    .join('\n')
-
-  const blob = new Blob([csvContent], { type: 'text/csv' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
 }
 
 // ---------------------------------------------------------------------------
@@ -502,72 +478,221 @@ function InvoicesTab() {
 }
 
 // ---------------------------------------------------------------------------
-// Defaulters tab
+// Defaulters tab (contract-powered)
 // ---------------------------------------------------------------------------
 
-const defaulterColumnHelper = createColumnHelper<Defaulter>()
+type DefaulterFilter = 'all' | 'active' | 'ended'
 
-const defaulterColumns = [
-  defaulterColumnHelper.accessor('client_name', {
-    header: 'Client',
-    cell: (info) => (
-      <span className="font-medium text-gray-900">{info.getValue()}</span>
-    ),
-  }),
-  defaulterColumnHelper.accessor('client_phone', {
-    header: 'Phone',
-    cell: (info) => (
-      <span className="text-gray-700 tabular-nums text-sm">{info.getValue()}</span>
-    ),
-  }),
-  defaulterColumnHelper.accessor('total_outstanding', {
-    header: 'Total Outstanding (UGX)',
-    cell: (info) => (
-      <span className="text-red-700 font-semibold tabular-nums text-sm">
-        {formatCurrency(info.getValue())}
-      </span>
-    ),
-  }),
-  defaulterColumnHelper.accessor('overdue_count', {
-    header: 'Overdue Invoices',
-    cell: (info) => (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-        {info.getValue()}
-      </span>
-    ),
-  }),
-]
+// ---------------------------------------------------------------------------
+// Month breakdown panel (rendered inside expanded rows)
+// ---------------------------------------------------------------------------
+
+function MonthBreakdownPanel({ breakdown }: { breakdown: MonthBreakdown[] }) {
+  if (breakdown.length === 0) {
+    return (
+      <div className="px-8 py-4 text-sm text-gray-400">
+        No month breakdown available.
+      </div>
+    )
+  }
+
+  const statusStyles: Record<MonthBreakdown['status'], string> = {
+    paid: 'bg-green-100 text-green-800',
+    partial: 'bg-yellow-100 text-yellow-800',
+    unpaid: 'bg-red-100 text-red-800',
+  }
+
+  const statusLabels: Record<MonthBreakdown['status'], string> = {
+    paid: 'Paid',
+    partial: 'Partial',
+    unpaid: 'Unpaid',
+  }
+
+  return (
+    <div className="px-8 py-4">
+      <table className="min-w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+        <thead className="bg-gray-100">
+          <tr>
+            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
+              Month
+            </th>
+            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
+              Amount Owed (UGX)
+            </th>
+            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
+              Status
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100 bg-white">
+          {breakdown.map((entry) => (
+            <tr key={entry.month} className="hover:bg-gray-50">
+              <td className="px-4 py-2 whitespace-nowrap text-gray-700">
+                {formatPeriod(entry.month)}
+              </td>
+              <td className="px-4 py-2 whitespace-nowrap tabular-nums text-gray-700">
+                {formatCurrency(entry.amount_owed)}
+              </td>
+              <td className="px-4 py-2 whitespace-nowrap">
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusStyles[entry.status]}`}
+                >
+                  {statusLabels[entry.status]}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+const defaulterColumnHelper = createColumnHelper<ContractDefaulter>()
+
+function buildDefaulterColumns() {
+  return [
+    defaulterColumnHelper.display({
+      id: 'expand',
+      header: '',
+      cell: (info) => (
+        <button
+          onClick={() => info.row.toggleExpanded()}
+          className="p-1 text-gray-500 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded transition-colors"
+          aria-label={info.row.getIsExpanded() ? 'Collapse row' : 'Expand row'}
+          aria-expanded={info.row.getIsExpanded()}
+        >
+          {info.row.getIsExpanded() ? '▼' : '▶'}
+        </button>
+      ),
+    }),
+    defaulterColumnHelper.accessor('client_name', {
+      id: 'client_name',
+      header: 'Client Name',
+      cell: (info) => (
+        <span className="font-medium text-gray-900">{info.getValue()}</span>
+      ),
+    }),
+    defaulterColumnHelper.accessor('client_phone', {
+      id: 'client_phone',
+      header: 'Phone',
+      cell: (info) => (
+        <span className="text-gray-700 tabular-nums text-sm">{info.getValue()}</span>
+      ),
+    }),
+    defaulterColumnHelper.accessor('monthly_rate', {
+      id: 'monthly_rate',
+      header: 'Monthly Rate (UGX)',
+      cell: (info) => (
+        <span className="text-gray-700 tabular-nums text-sm">
+          {formatCurrency(info.getValue())}
+        </span>
+      ),
+    }),
+    defaulterColumnHelper.accessor('months_unpaid', {
+      id: 'months_unpaid',
+      header: 'Months Unpaid',
+      cell: (info) => (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+          {info.getValue()}
+        </span>
+      ),
+    }),
+    defaulterColumnHelper.accessor('outstanding_balance', {
+      id: 'outstanding_balance',
+      header: 'Outstanding Balance (UGX)',
+      cell: (info) => (
+        <span className="text-red-700 font-semibold tabular-nums text-sm">
+          {formatCurrency(info.getValue())}
+        </span>
+      ),
+    }),
+    defaulterColumnHelper.accessor('end_date', {
+      id: 'end_date',
+      header: 'Contract End Date',
+      cell: (info) => {
+        const val = info.getValue()
+        return (
+          <span className="text-gray-700 text-sm tabular-nums">
+            {val ? formatDate(val) : 'Open-ended'}
+          </span>
+        )
+      },
+    }),
+  ]
+}
 
 function DefaultersTab() {
-  const { data, isLoading, error } = useDefaulters()
+  const { data, isLoading, error } = useContractDefaulters()
+  const [filter, setFilter] = useState<DefaulterFilter>('all')
+  const [expanded, setExpanded] = useState<ExpandedState>({})
+
+  const filteredData = useMemo(() => {
+    if (filter === 'active') return data.filter((d) => d.defaulter_category === 'active')
+    if (filter === 'ended') return data.filter((d) => d.defaulter_category === 'ended')
+    return data
+  }, [data, filter])
+
+  const columns = useMemo(() => buildDefaulterColumns(), [])
 
   const table = useReactTable({
-    data,
-    columns: defaulterColumns,
+    data: filteredData,
+    columns,
+    state: { expanded },
+    onExpandedChange: setExpanded,
     getCoreRowModel: getCoreRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
   })
 
   function handleExportCsv() {
-    const headers = ['Client', 'Phone', 'Total Outstanding (UGX)', 'Overdue Invoices']
-    const rows = data.map((d) => [
+    const headers = [
+      'Client Name',
+      'Phone',
+      'Monthly Rate (UGX)',
+      'Months Unpaid',
+      'Outstanding Balance (UGX)',
+      'Contract End Date',
+    ]
+    const rows = filteredData.map((d) => [
       d.client_name,
       d.client_phone,
-      String(d.total_outstanding),
-      String(d.overdue_count),
+      String(d.monthly_rate),
+      String(d.months_unpaid),
+      String(d.outstanding_balance),
+      d.end_date ?? 'Open-ended',
     ])
     downloadCsv('defaulters.csv', [headers, ...rows])
   }
 
+  const colCount = columns.length
+
   return (
     <div className="flex flex-col gap-4">
       {/* Toolbar */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">
-          {isLoading ? 'Loading…' : `${data.length} client${data.length !== 1 ? 's' : ''} with overdue invoices`}
-        </p>
+      <div className="flex flex-wrap items-center gap-3 justify-between">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Category filter */}
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as DefaulterFilter)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label="Filter defaulters by category"
+          >
+            <option value="all">All Defaulters</option>
+            <option value="active">Active Contract Defaulters</option>
+            <option value="ended">Ended Contract Defaulters</option>
+          </select>
+
+          {!isLoading && (
+            <span className="text-sm text-gray-500">
+              {filteredData.length} client{filteredData.length !== 1 ? 's' : ''} with outstanding balance
+            </span>
+          )}
+        </div>
+
         <button
           onClick={handleExportCsv}
-          disabled={data.length === 0}
+          disabled={filteredData.length === 0}
           className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           Export CSV
@@ -602,17 +727,213 @@ function DefaultersTab() {
             <tbody className="divide-y divide-gray-100 bg-white">
               {isLoading ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-2">
-                    <TableSkeleton rows={6} cols={4} />
+                  <td colSpan={colCount} className="px-4 py-2">
+                    <TableSkeleton rows={6} cols={colCount} />
                   </td>
                 </tr>
               ) : table.getRowModel().rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={colCount}
                     className="px-4 py-12 text-center text-gray-400 text-sm"
                   >
-                    No defaulters found. All clients are up to date.
+                    No defaulters found for the selected filter.
+                  </td>
+                </tr>
+              ) : (
+                table.getRowModel().rows.map((row) => (
+                  <React.Fragment key={row.id}>
+                    <tr className="hover:bg-gray-50 transition-colors">
+                      {row.getVisibleCells().map((cell) => (
+                        <td key={cell.id} className="px-4 py-2.5 whitespace-nowrap">
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      ))}
+                    </tr>
+                    {row.getIsExpanded() && (
+                      <tr>
+                        <td colSpan={colCount} className="px-0 py-0 bg-gray-50">
+                          <MonthBreakdownPanel
+                            breakdown={row.original.month_breakdown}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// ContractsTab
+// ---------------------------------------------------------------------------
+
+const contractColumnHelper = createColumnHelper<ContractWithClient>()
+
+function buildContractColumns() {
+  return [
+    contractColumnHelper.accessor('client_name', {
+      header: 'Client Name',
+      cell: (info) => (
+        <span className="font-medium text-gray-900">{info.getValue()}</span>
+      ),
+    }),
+    contractColumnHelper.accessor('monthly_rate', {
+      header: 'Monthly Rate (UGX)',
+      cell: (info) => (
+        <span className="text-gray-700 tabular-nums text-sm">
+          {formatCurrency(info.getValue())}
+        </span>
+      ),
+    }),
+    contractColumnHelper.accessor('start_date', {
+      header: 'Start Date',
+      cell: (info) => (
+        <span className="text-gray-700 text-sm tabular-nums">{formatDate(info.getValue())}</span>
+      ),
+    }),
+    contractColumnHelper.accessor('end_date', {
+      header: 'End Date',
+      cell: (info) => {
+        const val = info.getValue()
+        return (
+          <span className="text-gray-700 text-sm tabular-nums">
+            {val ? formatDate(val) : 'Open-ended'}
+          </span>
+        )
+      },
+    }),
+    contractColumnHelper.accessor('duration_months', {
+      header: 'Duration',
+      cell: (info) => (
+        <span className="text-gray-700 text-sm tabular-nums">{info.getValue()} months</span>
+      ),
+    }),
+    contractColumnHelper.accessor('effective_status', {
+      header: 'Status',
+      cell: (info) => {
+        const status = info.getValue()
+        const styles: Record<string, string> = {
+          active: 'bg-green-100 text-green-800',
+          suspended: 'bg-yellow-100 text-yellow-800',
+          terminated: 'bg-red-100 text-red-800',
+          ended: 'bg-gray-100 text-gray-700',
+        }
+        return (
+          <span
+            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${styles[status] ?? 'bg-gray-100 text-gray-700'}`}
+          >
+            {status}
+          </span>
+        )
+      },
+    }),
+  ]
+}
+
+function ContractsTab() {
+  const [filter, setFilter] = useState<ContractStatusFilter>('all')
+  const { data, isLoading, error } = useContracts(filter)
+
+  const columns = useMemo(() => buildContractColumns(), [])
+
+  const table = useReactTable({
+    data,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+  })
+
+  function handleExportCsv() {
+    const headers = ['Client Name', 'Monthly Rate (UGX)', 'Start Date', 'End Date', 'Duration', 'Status']
+    const rows = data.map((c) => [
+      c.client_name,
+      String(c.monthly_rate),
+      c.start_date,
+      c.end_date ?? 'Open-ended',
+      `${c.duration_months} months`,
+      c.effective_status,
+    ])
+    downloadCsv('contracts.csv', [headers, ...rows])
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3 justify-between">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Status filter */}
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as ContractStatusFilter)}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label="Filter by contract status"
+          >
+            <option value="all">All</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive / Ended</option>
+          </select>
+
+          {!isLoading && (
+            <span className="text-sm text-gray-500">
+              {data.length} contract{data.length !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+
+        <button
+          onClick={handleExportCsv}
+          disabled={data.length === 0}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          Export CSV
+        </button>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">
+          Failed to load contracts: {error.message}
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <div className="max-h-[600px] overflow-y-auto overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50 sticky top-0 z-10">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap"
+                    >
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                    </th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody className="divide-y divide-gray-100 bg-white">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-2">
+                    <TableSkeleton rows={8} cols={6} />
+                  </td>
+                </tr>
+              ) : table.getRowModel().rows.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="px-4 py-12 text-center text-gray-400 text-sm"
+                  >
+                    No contracts found matching the current filter.
                   </td>
                 </tr>
               ) : (
@@ -638,7 +959,7 @@ function DefaultersTab() {
 // BillingPage — tabbed layout
 // ---------------------------------------------------------------------------
 
-type Tab = 'invoices' | 'defaulters'
+type Tab = 'invoices' | 'defaulters' | 'contracts'
 
 export default function BillingPage() {
   const [activeTab, setActiveTab] = useState<Tab>('invoices')
@@ -663,6 +984,7 @@ export default function BillingPage() {
           [
             { id: 'invoices', label: 'Invoices' },
             { id: 'defaulters', label: 'Defaulters' },
+            { id: 'contracts', label: 'Contracts' },
           ] as { id: Tab; label: string }[]
         ).map((tab) => (
           <button
@@ -700,6 +1022,15 @@ export default function BillingPage() {
         hidden={activeTab !== 'defaulters'}
       >
         {activeTab === 'defaulters' && <DefaultersTab />}
+      </div>
+
+      <div
+        id="tabpanel-contracts"
+        role="tabpanel"
+        aria-labelledby="tab-contracts"
+        hidden={activeTab !== 'contracts'}
+      >
+        {activeTab === 'contracts' && <ContractsTab />}
       </div>
     </div>
   )
