@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as p;
 
 import 'route_list_screen.dart';
 import 'collections_history_screen.dart';
@@ -10,23 +12,20 @@ import '../auth/auth_provider.dart';
 import '../auth/login_screen.dart';
 import 'connectivity_indicator.dart';
 
+final driverTabProvider = StateProvider<int>((ref) => 0);
+
 /// Modern Driver Home Screen with a bottom navigation bar.
-class DriverHomeScreen extends StatefulWidget {
+class DriverHomeScreen extends ConsumerWidget {
   const DriverHomeScreen({super.key});
 
   @override
-  State<DriverHomeScreen> createState() => _DriverHomeScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentIndex = ref.watch(driverTabProvider);
 
-class _DriverHomeScreenState extends State<DriverHomeScreen> {
-  int _currentIndex = 0;
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       body: IndexedStack(
-        index: _currentIndex,
+        index: currentIndex,
         children: [
           const _HomeDashboardTab(),
           const RouteListScreen(),
@@ -35,8 +34,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (idx) => setState(() => _currentIndex = idx),
+        currentIndex: currentIndex,
+        onTap: (idx) => ref.read(driverTabProvider.notifier).state = idx,
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Colors.blue.shade700,
         unselectedItemColor: Colors.grey.shade600,
@@ -101,10 +100,14 @@ class _HomeDashboardTabState extends ConsumerState<_HomeDashboardTab> {
         elevation: 0,
         title: Row(
           children: [
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: Colors.blue.shade100,
-              child: Icon(Icons.person, size: 20, color: Colors.blue.shade700),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: Image.asset(
+                'assets/app_logo.png',
+                width: 32,
+                height: 32,
+                fit: BoxFit.cover,
+              ),
             ),
             const SizedBox(width: 12),
             const Text(
@@ -379,7 +382,7 @@ class _HomeDashboardTabState extends ConsumerState<_HomeDashboardTab> {
                                         const Text(
                                           'NO STOPS ADDED YET',
                                           style: TextStyle(
-                                            color: Colors.white70,
+                                            color: Colors.white,
                                             fontSize: 11,
                                             fontWeight: FontWeight.bold,
                                           ),
@@ -387,7 +390,7 @@ class _HomeDashboardTabState extends ConsumerState<_HomeDashboardTab> {
                                         const SizedBox(height: 4),
                                         Text(
                                           'Route assigned. Waiting for admin to add client stops.',
-                                          style: TextStyle(color: Colors.white54, fontSize: 12),
+                                          style: TextStyle(color: Colors.white, fontSize: 12),
                                         ),
                                       ],
                                     ),
@@ -408,8 +411,11 @@ class _HomeDashboardTabState extends ConsumerState<_HomeDashboardTab> {
                         ),
                         child: ElevatedButton.icon(
                           onPressed: hasClients ? () {} : null,
-                          icon: const Icon(Icons.navigation),
-                          label: Text(hasClients ? 'Start Navigation' : 'Waiting for stops...'),
+                          icon: const Icon(Icons.navigation, color: Colors.white),
+                          label: Text(
+                            hasClients ? 'Start Navigation' : 'Waiting for stops...',
+                            style: const TextStyle(color: Colors.white),
+                          ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: hasClients ? Colors.blue.shade600 : Colors.grey.shade700,
                             foregroundColor: Colors.white,
@@ -456,6 +462,9 @@ class _HomeDashboardTabState extends ConsumerState<_HomeDashboardTab> {
                     title: 'COLLECTED',
                     value: historyAsync.valueOrNull?.length.toString() ?? '0',
                     color: Colors.green,
+                    onTap: () {
+                      ref.read(driverTabProvider.notifier).state = 2; // History tab
+                    },
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -465,6 +474,9 @@ class _HomeDashboardTabState extends ConsumerState<_HomeDashboardTab> {
                     title: 'PENDING',
                     value: routeAsync.valueOrNull?.clients.length.toString() ?? '0',
                     color: Colors.blue,
+                    onTap: () {
+                      ref.read(driverTabProvider.notifier).state = 1; // Routes tab
+                    },
                   ),
                 ),
               ],
@@ -480,7 +492,9 @@ class _HomeDashboardTabState extends ConsumerState<_HomeDashboardTab> {
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 TextButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    ref.read(driverTabProvider.notifier).state = 2; // Switch to History tab
+                  },
                   child: const Text('VIEW ALL', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
@@ -555,46 +569,52 @@ class _StatCard extends StatelessWidget {
   final String title;
   final String value;
   final Color color;
+  final VoidCallback? onTap;
 
   const _StatCard({
     required this.icon,
     required this.title,
     required this.value,
     required this.color,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade600,
-              letterSpacing: 0.5,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade600,
+                letterSpacing: 0.5,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -614,6 +634,8 @@ class _ProfileTabState extends ConsumerState<_ProfileTab> {
   String _role = 'Driver';
   bool _pushNotifications = true;
   bool _emailNotifications = false;
+  String? _avatarUrl;
+  bool _isUploading = false;
 
   @override
   void initState() {
@@ -643,12 +665,65 @@ class _ProfileTabState extends ConsumerState<_ProfileTab> {
         setState(() {
           _fullName = (data['full_name'] as String?) ?? '';
           _phone = (data['phone'] as String?) ?? '';
+          _avatarUrl = (data['avatar_url'] as String?);
           if (data['email'] != null) _email = data['email'] as String;
           if (data['role'] != null) _role = (data['role'] as String).toUpperCase();
         });
       }
     } catch (_) {
       // Offline fallback — already loaded from session
+    }
+  }
+
+  Future<void> _pickAndUploadImage() async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 75,
+    );
+
+    if (image == null) return;
+
+    setState(() => _isUploading = true);
+
+    try {
+      final supabase = Supabase.instance.client;
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) return;
+
+      final bytes = await image.readAsBytes();
+      final fileExt = p.extension(image.path);
+      final fileName = '$userId-${DateTime.now().millisecondsSinceEpoch}$fileExt';
+      final filePath = 'avatars/$fileName';
+
+      await supabase.storage.from('avatars').uploadBinary(
+            fileName,
+            bytes,
+            fileOptions: const FileOptions(upsert: true),
+          );
+
+      final imageUrl = supabase.storage.from('avatars').getPublicUrl(fileName);
+
+      await supabase.from('users').update({'avatar_url': imageUrl}).eq('id', userId);
+
+      if (mounted) {
+        setState(() {
+          _avatarUrl = imageUrl;
+          _isUploading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile photo updated')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isUploading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload failed: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -1070,16 +1145,53 @@ class _ProfileTabState extends ConsumerState<_ProfileTab> {
             padding: const EdgeInsets.only(bottom: 32.0, top: 16.0),
             child: Column(
               children: [
-                Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 3),
-                  ),
-                  child: CircleAvatar(
-                    radius: 46,
-                    backgroundColor: Colors.blue.shade100,
-                    child: Icon(Icons.person, size: 50, color: Colors.blue.shade700),
-                  ),
+                Stack(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 3),
+                      ),
+                      child: CircleAvatar(
+                        radius: 46,
+                        backgroundColor: Colors.blue.shade100,
+                        backgroundImage: _avatarUrl != null ? NetworkImage(_avatarUrl!) : null,
+                        child: _avatarUrl == null
+                            ? Icon(Icons.person, size: 50, color: Colors.blue.shade700)
+                            : null,
+                      ),
+                    ),
+                    if (_isUploading)
+                      Positioned.fill(
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            color: Colors.black26,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Center(
+                            child: CircularProgressIndicator(color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: _isUploading ? null : _pickAndUploadImage,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(color: Colors.black12, blurRadius: 4, offset: const Offset(0, 2)),
+                            ],
+                          ),
+                          child: Icon(Icons.camera_alt, color: Colors.blue.shade700, size: 18),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 Text(

@@ -9,6 +9,14 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 
+    <!-- Pushy permissions -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+
     <!-- Required for url_launcher to open https:// URLs on Android 11+ -->
     <queries>
         <intent>
@@ -24,7 +32,18 @@
     <application
         android:label="Desheena Waste"
         android:name="${applicationName}"
-        android:icon="@drawable/launch_background">
+        android:icon="@drawable/splash"
+        android:enableOnBackInvokedCallback="true">
+        
+        <!-- Pushy Declaration -->
+        <receiver android:name="me.pushy.sdk.flutter.PushyReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="pushy.me" />
+            </intent-filter>
+        </receiver>
+
+        <service android:name="me.pushy.sdk.services.PushyJobService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

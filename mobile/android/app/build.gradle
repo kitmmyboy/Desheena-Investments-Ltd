@@ -28,6 +28,7 @@ android {
     ndkVersion flutter.ndkVersion
 
     compileOptions {
+        coreLibraryDesugaringEnabled true
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
@@ -72,4 +73,5 @@ dependencies {
             because("AGP 8.7.2 compatibility")
         }
     }
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 }

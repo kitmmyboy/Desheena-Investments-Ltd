@@ -24,7 +24,7 @@ class CustomerDashboardScreen extends ConsumerWidget {
             final totalPaid = data.payments.fold<double>(0, (sum, p) => sum + p.amount);
             final outstanding = data.invoices
                 .where((i) => i.status.toLowerCase() != 'paid')
-                .fold<double>(0, (sum, i) => sum + i.totalAmount);
+                .fold<double>(0, (sum, i) => sum + i.amount);
 
             return ListView(
               padding: const EdgeInsets.all(16),

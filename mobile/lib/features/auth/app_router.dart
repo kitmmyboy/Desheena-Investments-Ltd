@@ -6,6 +6,7 @@ import '../customer/customer_home_screen.dart';
 import '../driver/driver_home_screen.dart';
 import 'auth_provider.dart';
 import 'login_screen.dart';
+import '../../core/notification_service.dart';
 
 /// Root router widget.
 ///
@@ -56,6 +57,9 @@ final _startupRouteProvider = FutureProvider<Widget>((ref) async {
     if (!isExpired) {
       // Valid cached session — navigate directly.
       destination = _screenForRole(cached.role);
+      
+      // Register token in background
+      NotificationService.registerDeviceToken();
     } else {
       // JWT is expired — try to refresh silently.
       final newRole = await repo.refreshToken(cached.refreshToken);
@@ -63,6 +67,7 @@ final _startupRouteProvider = FutureProvider<Widget>((ref) async {
       if (newRole != null) {
         // Refresh succeeded.
         destination = _screenForRole(newRole);
+        NotificationService.registerDeviceToken();
       } else {
         // Refresh failed (offline or revoked token).
         // If we have a cached role we allow offline access per Requirement 1.3.

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'core/notification_service.dart';
 
 import 'core/constants.dart';
 import 'features/auth/app_router.dart';
@@ -14,6 +15,13 @@ Future<void> main() async {
     url: AppConstants.supabaseUrl,
     anonKey: AppConstants.supabaseAnonKey,
   );
+
+  // Initialize Notifications
+  try {
+    await NotificationService.initialize();
+  } catch (e) {
+    debugPrint('Notification initialization failed: $e');
+  }
 
   runApp(
     const ProviderScope(
