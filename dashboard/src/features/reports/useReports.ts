@@ -127,7 +127,7 @@ export function useFinancialReport(filters: FinancialFilters = {}) {
         filtered.filter((i) => i.status === 'unpaid' || i.status === 'overdue').map((i) => i.client_id)
       )
 
-      return { totalOutstanding, totalCollected, totalInvoiced, defaulterCount: defaulterSet.size, paidCount, unpaidCount, overdueCount, monthlyRows }
+      return { totalOutstanding, totalCollected, totalInvoiced, defaulterCount: defaulterSet.size, paidCount, unpaidCount, overdueCount, monthlyRows: [...monthlyRows].reverse() }
     },
     staleTime: 5 * 60 * 1000,
   })

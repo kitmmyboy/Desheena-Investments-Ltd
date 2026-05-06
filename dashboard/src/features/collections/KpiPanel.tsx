@@ -82,10 +82,12 @@ function CollectionsMiniChart({ total }: { total: number }) {
 // ---------------------------------------------------------------------------
 
 function RevenueTrendChart({ rows, isLoading }: { rows: { label: string; totalInvoiced: number; totalCollected: number }[]; isLoading: boolean }) {
+  // rows come in newest-first from the hook; reverse for chronological chart display
+  const chartData = [...rows].reverse()
   if (isLoading) return <div className="h-48 bg-gray-100 animate-pulse rounded-lg" />
   return (
     <ResponsiveContainer width="100%" height={200}>
-      <AreaChart data={rows} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+      <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id="invoicedGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />

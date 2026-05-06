@@ -310,7 +310,7 @@ export default function FinancialReport() {
                 <div className="h-56 bg-gray-100 animate-pulse rounded-lg" />
               ) : (
                 <ResponsiveContainer width="100%" height={240}>
-                  <BarChart data={data?.monthlyRows ?? []} margin={{ top: 4, right: 8, left: 0, bottom: 0 }} barCategoryGap="30%">
+                  <BarChart data={[...(data?.monthlyRows ?? [])].reverse()} margin={{ top: 4, right: 8, left: 0, bottom: 0 }} barCategoryGap="30%">
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false}
