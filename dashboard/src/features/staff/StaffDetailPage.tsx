@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { useStaffDetail, useStaffPerformance } from './useStaff'
+import { useStaffDetail, useStaffPerformance, useHardDeleteStaff } from './useStaff'
 import type { StaffRole, StaffStatus } from './useStaff'
 import StaffForm from './StaffForm'
 import { supabase } from '../../lib/supabase'
@@ -103,6 +103,7 @@ export default function StaffDetailPage() {
   const { data: staff, isLoading, error } = useStaffDetail(staffId)
   const { data: performance } = useStaffPerformance(staffId, staff?.user_id)
   const { data: recentCollections = [] } = useRecentCollections(staff?.user_id)
+  const hardDeleteStaff = useHardDeleteStaff()
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-64 text-gray-400 text-sm">Loading…</div>
@@ -162,6 +163,19 @@ export default function StaffDetailPage() {
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
           >
             Edit
+          </button>
+          <button
+            onClick={() => {
+              if (confirm(`Permanently delete ${staff.full_name}? This cannot be undone.`)) {
+                hardDeleteStaff.mutate(staff.id, {
+                  onSuccess: () => navigate('/dashboard/staff'),
+                })
+              }
+            }}
+            disabled={hardDeleteStaff.isPending}
+            className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+          >
+            {hardDeleteStaff.isPending ? 'Deleting…' : 'Delete'}
           </button>
         </div>
       </div>

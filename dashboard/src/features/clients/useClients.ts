@@ -81,13 +81,69 @@ export function useClients({
   const { data, isLoading, error } = useQuery({
     queryKey,
     queryFn: async () => {
+      // When filtering by contract status we need a different query strategy:
+      // fetch all matching client IDs via the contracts table first, then
+      // use that to filter the clients query — this keeps pagination accurate.
+
+      let clientIds: string[] | null = null
+      // Special case: empty string means "no contract"
+      let filterNoContract = false
+
+      if (contractStatus === '') {
+        filterNoContract = true
+      } else if (contractStatus && contractStatus !== 'all') {
+        const { data: contractRows, error: contractError } = await supabase
+          .from('contracts')
+          .select('client_id, status, end_date')
+
+        if (contractError) throw new Error(contractError.message)
+
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+
+        const matchingIds = new Set<string>()
+        for (const row of contractRows ?? []) {
+          let effectiveStatus = row.status
+          if (row.end_date) {
+            const end = new Date(row.end_date)
+            end.setHours(0, 0, 0, 0)
+            if (end < today) effectiveStatus = 'ended'
+          }
+          if (effectiveStatus === contractStatus) {
+            matchingIds.add(row.client_id)
+          }
+        }
+
+        clientIds = Array.from(matchingIds)
+
+        if (clientIds.length === 0) {
+          return { rows: [], count: 0 }
+        }
+      }
+
       let query = supabase
         .from('clients')
-        .select('*, contracts(status)', { count: 'exact' })
+        .select('*, contracts(status, end_date, start_date)', { count: 'exact' })
 
       // By default only show active clients; showInactive shows all
       if (!showInactive) {
         query = query.eq('is_active', true)
+      }
+
+      // Apply contract status pre-filter
+      if (clientIds !== null) {
+        query = query.in('id', clientIds)
+      }
+
+      // "No contract" filter — exclude clients that have any contract
+      if (filterNoContract) {
+        const { data: allContractRows } = await supabase
+          .from('contracts')
+          .select('client_id')
+        const clientsWithContracts = new Set((allContractRows ?? []).map((r: { client_id: string }) => r.client_id))
+        // We can't do NOT IN easily in supabase-js without a workaround;
+        // fetch all matching clients then exclude those with contracts
+        query = query.not('id', 'in', `(${Array.from(clientsWithContracts).join(',') || 'null'})`)
       }
 
       // Search by name or phone
@@ -101,9 +157,9 @@ export function useClients({
         query = query.eq('zone', zone)
       }
 
-      // Service frequency filter
+      // Service frequency filter — exact match (case-insensitive)
       if (serviceFrequency && serviceFrequency !== 'all') {
-        query = query.ilike('service_frequency', `%${serviceFrequency}%`)
+        query = query.ilike('service_frequency', serviceFrequency)
       }
 
       // Sorting
@@ -118,22 +174,44 @@ export function useClients({
 
       if (queryError) throw new Error(queryError.message)
 
-      // Flatten contract status
-      const clients: ClientWithContractStatus[] = (rows ?? []).map((row: Client) => {
-        const latestContract = row.contracts?.[0] ?? null
+      // Flatten contract status — pick the most relevant contract:
+      // prefer active > suspended > terminated, then most recent by start_date
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
+      const clients: ClientWithContractStatus[] = (rows ?? []).map((row: Client & { contracts?: { status: string; end_date: string | null; start_date: string }[] | null }) => {
+        const contracts = (row.contracts ?? []) as { status: string; end_date: string | null; start_date: string }[]
+
+        // Compute effective status for each contract
+        const withEffective = contracts.map((c) => {
+          let effectiveStatus = c.status
+          if (c.end_date) {
+            const end = new Date(c.end_date)
+            end.setHours(0, 0, 0, 0)
+            if (end < today) effectiveStatus = 'ended'
+          }
+          return { ...c, effectiveStatus }
+        })
+
+        // Priority: active > suspended > ended > terminated
+        const priority: Record<string, number> = { active: 0, suspended: 1, ended: 2, terminated: 3 }
+        withEffective.sort((a, b) => {
+          const pa = priority[a.effectiveStatus] ?? 99
+          const pb = priority[b.effectiveStatus] ?? 99
+          if (pa !== pb) return pa - pb
+          // Same priority — most recent start_date wins
+          return new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
+        })
+
+        const best = withEffective[0] ?? null
+
         return {
           ...row,
-          contract_status: latestContract?.status ?? null,
+          contract_status: best?.effectiveStatus ?? null,
         }
       })
 
-      // Client-side filter by contract status (since it comes from a join)
-      const filtered =
-        contractStatus && contractStatus !== 'all'
-          ? clients.filter((c) => c.contract_status === contractStatus)
-          : clients
-
-      return { rows: filtered, count: count ?? 0 }
+      return { rows: clients, count: count ?? 0 }
     },
   })
 

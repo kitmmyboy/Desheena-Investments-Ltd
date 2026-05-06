@@ -418,7 +418,9 @@ export default function ClientsPage() {
           <option value="all">All contract statuses</option>
           <option value="active">Active</option>
           <option value="suspended">Suspended</option>
+          <option value="ended">Ended</option>
           <option value="terminated">Terminated</option>
+          <option value="">No contract</option>
         </select>
 
         {/* Show inactive toggle */}

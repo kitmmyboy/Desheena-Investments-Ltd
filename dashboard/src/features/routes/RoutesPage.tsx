@@ -1,51 +1,112 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useRoutes, useCreateRoute } from './useRoutes'
+import { useRoutes, useCreateRoute, useUpdateRoute, useDeleteRoute } from './useRoutes'
+import type { Route } from './useRoutes'
 
 // ---------------------------------------------------------------------------
-// RoutesPage — route list + create form
+// RoutesPage — full CRUD: list, create, edit, delete
 // ---------------------------------------------------------------------------
+
+interface RouteFormState {
+  name: string
+  zone: string
+}
+
+const EMPTY_FORM: RouteFormState = { name: '', zone: '' }
 
 export default function RoutesPage() {
   const navigate = useNavigate()
   const { data: routes = [], isLoading, error } = useRoutes()
 
-  // Create form state
-  const [showForm, setShowForm] = useState(false)
-  const [name, setName] = useState('')
-  const [zone, setZone] = useState('')
-  const [formError, setFormError] = useState<string | null>(null)
+  // Create form
+  const [showCreate, setShowCreate] = useState(false)
+  const [createForm, setCreateForm] = useState<RouteFormState>(EMPTY_FORM)
+  const [createError, setCreateError] = useState<string | null>(null)
+
+  // Edit form — keyed by route id
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<RouteFormState>(EMPTY_FORM)
+  const [editError, setEditError] = useState<string | null>(null)
 
   const createRoute = useCreateRoute()
+  const updateRoute = useUpdateRoute()
+  const deleteRoute = useDeleteRoute()
 
-  function handleOpenForm() {
-    setName('')
-    setZone('')
-    setFormError(null)
-    setShowForm(true)
+  // ---------------------------------------------------------------------------
+  // Create handlers
+  // ---------------------------------------------------------------------------
+
+  function openCreate() {
+    setCreateForm(EMPTY_FORM)
+    setCreateError(null)
+    setShowCreate(true)
   }
 
-  function handleCancel() {
-    setShowForm(false)
-    setFormError(null)
+  function cancelCreate() {
+    setShowCreate(false)
+    setCreateError(null)
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    setFormError(null)
-
-    if (!name.trim()) {
-      setFormError('Route name is required.')
+    setCreateError(null)
+    if (!createForm.name.trim()) {
+      setCreateError('Route name is required.')
       return
     }
-
     try {
-      await createRoute.mutateAsync({ name: name.trim(), zone: zone.trim() || undefined })
-      setShowForm(false)
-      setName('')
-      setZone('')
+      await createRoute.mutateAsync({ name: createForm.name.trim(), zone: createForm.zone.trim() || undefined })
+      setShowCreate(false)
+      setCreateForm(EMPTY_FORM)
     } catch (err) {
-      setFormError((err as Error).message)
+      setCreateError((err as Error).message)
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Edit handlers
+  // ---------------------------------------------------------------------------
+
+  function openEdit(route: Route) {
+    setEditingId(route.id)
+    setEditForm({ name: route.name, zone: route.zone ?? '' })
+    setEditError(null)
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditError(null)
+  }
+
+  async function handleUpdate(e: React.FormEvent, routeId: string) {
+    e.preventDefault()
+    setEditError(null)
+    if (!editForm.name.trim()) {
+      setEditError('Route name is required.')
+      return
+    }
+    try {
+      await updateRoute.mutateAsync({ id: routeId, name: editForm.name.trim(), zone: editForm.zone.trim() || undefined })
+      setEditingId(null)
+    } catch (err) {
+      setEditError((err as Error).message)
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Delete handler
+  // ---------------------------------------------------------------------------
+
+  async function handleDelete(route: Route) {
+    const clientCount = route.route_clients?.length ?? 0
+    const msg = clientCount > 0
+      ? `Delete "${route.name}"? This will also remove ${clientCount} client assignment${clientCount !== 1 ? 's' : ''}. This cannot be undone.`
+      : `Delete "${route.name}"? This cannot be undone.`
+    if (!confirm(msg)) return
+    try {
+      await deleteRoute.mutateAsync(route.id)
+    } catch (err) {
+      alert((err as Error).message)
     }
   }
 
@@ -64,7 +125,7 @@ export default function RoutesPage() {
           </p>
         </div>
         <button
-          onClick={handleOpenForm}
+          onClick={openCreate}
           className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -74,44 +135,40 @@ export default function RoutesPage() {
         </button>
       </div>
 
-      {/* Create route form */}
-      {showForm && (
+      {/* Create form */}
+      {showCreate && (
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-5">
           <h2 className="mb-4 text-base font-semibold text-gray-900">New route</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleCreate} className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label htmlFor="route-name" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="create-name" className="block text-sm font-medium text-gray-700">
                   Route name <span className="text-red-500">*</span>
                 </label>
                 <input
-                  id="route-name"
+                  id="create-name"
                   type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  value={createForm.name}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
                   placeholder="e.g. Naalya Morning Run"
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label htmlFor="route-zone" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="create-zone" className="block text-sm font-medium text-gray-700">
                   Zone
                 </label>
                 <input
-                  id="route-zone"
+                  id="create-zone"
                   type="text"
-                  value={zone}
-                  onChange={(e) => setZone(e.target.value)}
+                  value={createForm.zone}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, zone: e.target.value }))}
                   placeholder="e.g. Naalya"
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
             </div>
-
-            {formError && (
-              <p className="text-sm text-red-600">{formError}</p>
-            )}
-
+            {createError && <p className="text-sm text-red-600">{createError}</p>}
             <div className="flex items-center gap-3">
               <button
                 type="submit"
@@ -122,7 +179,7 @@ export default function RoutesPage() {
               </button>
               <button
                 type="button"
-                onClick={handleCancel}
+                onClick={cancelCreate}
                 className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
                 Cancel
@@ -157,18 +214,11 @@ export default function RoutesPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                  Route name
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                  Zone
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                  Assigned driver
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                  Clients
-                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Route name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Zone</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Assigned driver</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Clients</th>
+                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
@@ -176,29 +226,105 @@ export default function RoutesPage() {
                 const driver = route.route_drivers?.[0]
                 const driverEmail = driver?.users?.email ?? '—'
                 const clientCount = route.route_clients?.length ?? 0
+                const isEditing = editingId === route.id
 
                 return (
-                  <tr key={route.id} className="hover:bg-gray-50">
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <button
-                        onClick={() => navigate(`/dashboard/routes/${route.id}`)}
-                        className="font-medium text-blue-600 hover:text-blue-800 hover:underline focus:outline-none"
-                      >
-                        {route.name}
-                      </button>
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
-                      {route.zone ?? <span className="text-gray-400">—</span>}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
-                      {driverEmail}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
-                      <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
-                        {clientCount}
-                      </span>
-                    </td>
-                  </tr>
+                  <React.Fragment key={route.id}>
+                    <tr className={isEditing ? 'bg-yellow-50' : 'hover:bg-gray-50'}>
+                      {/* Name */}
+                      <td className="whitespace-nowrap px-6 py-4">
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editForm.name}
+                            onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                            className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            autoFocus
+                          />
+                        ) : (
+                          <button
+                            onClick={() => navigate(`/dashboard/routes/${route.id}`)}
+                            className="font-medium text-blue-600 hover:text-blue-800 hover:underline focus:outline-none"
+                          >
+                            {route.name}
+                          </button>
+                        )}
+                      </td>
+
+                      {/* Zone */}
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editForm.zone}
+                            onChange={(e) => setEditForm((f) => ({ ...f, zone: e.target.value }))}
+                            placeholder="Zone (optional)"
+                            className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        ) : (
+                          route.zone ?? <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+
+                      {/* Driver */}
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
+                        {driverEmail}
+                      </td>
+
+                      {/* Client count */}
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
+                        <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+                          {clientCount}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="whitespace-nowrap px-6 py-4 text-right">
+                        {isEditing ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={(e) => handleUpdate(e, route.id)}
+                              disabled={updateRoute.isPending}
+                              className="rounded-md bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                              {updateRoute.isPending ? 'Saving…' : 'Save'}
+                            </button>
+                            <button
+                              onClick={cancelEdit}
+                              className="rounded-md border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                              Cancel
+                            </button>
+                            {editError && (
+                              <span className="text-xs text-red-600">{editError}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => navigate(`/dashboard/routes/${route.id}`)}
+                              className="text-xs font-medium text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                            >
+                              View
+                            </button>
+                            <button
+                              onClick={() => openEdit(route)}
+                              className="text-xs font-medium text-gray-600 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDelete(route)}
+                              disabled={deleteRoute.isPending}
+                              className="text-xs font-medium text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50 transition-colors disabled:opacity-40"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  </React.Fragment>
                 )
               })}
             </tbody>

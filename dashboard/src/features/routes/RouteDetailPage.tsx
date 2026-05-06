@@ -8,6 +8,7 @@ import {
   useAssignClientToRoute,
   useAssignDriverToRoute,
   useRemoveClientFromRoute,
+  useRemoveDriverFromRoute,
   useDriverLocations,
 } from './useRoutes'
 
@@ -89,6 +90,7 @@ export default function RouteDetailPage() {
   const assignClient = useAssignClientToRoute()
   const assignDriver = useAssignDriverToRoute()
   const removeClient = useRemoveClientFromRoute()
+  const removeDriver = useRemoveDriverFromRoute()
 
   // ---------------------------------------------------------------------------
   // Derive sorted client list and map pins
@@ -261,9 +263,22 @@ export default function RouteDetailPage() {
       <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
         <h2 className="mb-3 text-base font-semibold text-gray-900">Assigned driver</h2>
         {assignedDriver ? (
-          <p className="text-sm text-gray-700">
-            <span className="font-medium">{assignedDriver.users?.email ?? assignedDriver.driver_id}</span>
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-700">
+              <span className="font-medium">{assignedDriver.users?.email ?? assignedDriver.driver_id}</span>
+            </p>
+            <button
+              onClick={() => {
+                if (confirm('Remove this driver from the route?')) {
+                  removeDriver.mutate({ routeDriverId: assignedDriver.id, routeId: routeId! })
+                }
+              }}
+              disabled={removeDriver.isPending}
+              className="text-xs font-medium text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50 transition-colors disabled:opacity-40"
+            >
+              {removeDriver.isPending ? 'Removing…' : 'Remove'}
+            </button>
+          </div>
         ) : (
           <p className="text-sm text-gray-400 italic">No driver assigned yet.</p>
         )}

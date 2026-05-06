@@ -7,7 +7,7 @@ import {
   createColumnHelper,
   type PaginationState,
 } from '@tanstack/react-table'
-import { useStaffList, useDeleteStaff } from './useStaff'
+import { useStaffList, useDeleteStaff, useHardDeleteStaff } from './useStaff'
 import type { StaffMember, StaffRole, StaffStatus, StaffFilters } from './useStaff'
 import StaffForm from './StaffForm'
 
@@ -93,6 +93,7 @@ const PAGE_SIZE_OPTIONS = [25, 50, 100]
 export default function StaffListPage() {
   const navigate = useNavigate()
   const deleteStaff = useDeleteStaff()
+  const hardDeleteStaff = useHardDeleteStaff()
 
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 25 })
   const [roleFilter, setRoleFilter] = useState<StaffRole | ''>('')
@@ -166,9 +167,21 @@ export default function StaffListPage() {
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); if (confirm('Terminate this staff member?')) deleteStaff.mutate(row.original.id) }}
-            className="text-xs font-medium text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50 transition-colors"
+            className="text-xs font-medium text-orange-600 hover:text-orange-800 px-2 py-1 rounded hover:bg-orange-50 transition-colors"
           >
             Terminate
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              if (confirm(`Permanently delete ${row.original.full_name}? This cannot be undone.`)) {
+                hardDeleteStaff.mutate(row.original.id)
+              }
+            }}
+            disabled={hardDeleteStaff.isPending}
+            className="text-xs font-medium text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50 transition-colors disabled:opacity-40"
+          >
+            Delete
           </button>
         </div>
       ),

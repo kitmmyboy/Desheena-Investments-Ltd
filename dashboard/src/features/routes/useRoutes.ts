@@ -55,6 +55,12 @@ export interface CreateRouteInput {
   zone?: string
 }
 
+export interface UpdateRouteInput {
+  id: string
+  name: string
+  zone?: string
+}
+
 export interface AssignClientInput {
   routeId: string
   clientId: string
@@ -142,6 +148,77 @@ export function useCreateRoute() {
       return data
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['routes'] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// useUpdateRoute — mutation to update a route's name and zone
+// ---------------------------------------------------------------------------
+
+export function useUpdateRoute() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (input: UpdateRouteInput) => {
+      const { data, error } = await supabase
+        .from('routes')
+        .update({ name: input.name, zone: input.zone ?? null })
+        .eq('id', input.id)
+        .select()
+        .single()
+
+      if (error) throw new Error(error.message)
+      return data
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['routes'] })
+      queryClient.invalidateQueries({ queryKey: ['routes', variables.id] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// useDeleteRoute — mutation to delete a route (cascades to route_clients/drivers)
+// ---------------------------------------------------------------------------
+
+export function useDeleteRoute() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (routeId: string) => {
+      const { error } = await supabase
+        .from('routes')
+        .delete()
+        .eq('id', routeId)
+
+      if (error) throw new Error(error.message)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['routes'] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// useRemoveDriverFromRoute — mutation to unassign a driver from a route
+// ---------------------------------------------------------------------------
+
+export function useRemoveDriverFromRoute() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ routeDriverId }: { routeDriverId: string; routeId: string }) => {
+      const { error } = await supabase
+        .from('route_drivers')
+        .delete()
+        .eq('id', routeDriverId)
+
+      if (error) throw new Error(error.message)
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['routes', variables.routeId] })
       queryClient.invalidateQueries({ queryKey: ['routes'] })
     },
   })
