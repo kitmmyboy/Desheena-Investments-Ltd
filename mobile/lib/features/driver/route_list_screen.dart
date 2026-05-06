@@ -168,18 +168,92 @@ class _RouteClientList extends StatelessWidget {
   Widget build(BuildContext context) {
     final clients = routeData.clients;
 
-    if (clients.isEmpty) {
-      return const _NoRouteView();
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.all(12),
-      itemCount: clients.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        final client = clients[index];
-        return _ClientCard(client: client);
-      },
+    return Column(
+      children: [
+        // Route info header — always visible
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A233A),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      routeData.route.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                    if (routeData.route.zone.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Zone: ${routeData.route.zone}',
+                          style: const TextStyle(color: Colors.white70, fontSize: 13),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: clients.isNotEmpty ? Colors.green.shade600 : Colors.orange.shade700,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '${clients.length} stops',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Client list or empty message
+        Expanded(
+          child: clients.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.location_off_outlined, size: 48, color: Colors.orange.shade300),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'No stops added yet',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Your route is assigned but the admin hasn\'t added client stops yet.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: clients.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final client = clients[index];
+                    return _ClientCard(client: client);
+                  },
+                ),
+        ),
+      ],
     );
   }
 }

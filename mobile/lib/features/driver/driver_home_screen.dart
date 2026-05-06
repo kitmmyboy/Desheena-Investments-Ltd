@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'route_list_screen.dart';
 import 'collections_history_screen.dart';
@@ -608,6 +609,8 @@ class _ProfileTab extends ConsumerStatefulWidget {
 
 class _ProfileTabState extends ConsumerState<_ProfileTab> {
   String _email = 'Loading...';
+  String _fullName = '';
+  String _phone = '';
   String _role = 'Driver';
   bool _pushNotifications = true;
   bool _emailNotifications = false;
@@ -620,109 +623,331 @@ class _ProfileTabState extends ConsumerState<_ProfileTab> {
 
   Future<void> _loadProfile() async {
     final session = await ref.read(authRepositoryProvider).getOfflineSession();
-    if (mounted && session != null) {
-      setState(() {
-        _email = session.email;
-        _role = session.role.toUpperCase();
-      });
+    if (session == null || !mounted) return;
+    setState(() {
+      _email = session.email;
+      _role = session.role.toUpperCase();
+    });
+
+    // Fetch full profile from Supabase users table
+    try {
+      final supabase = Supabase.instance.client;
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) return;
+      final data = await supabase
+          .from('users')
+          .select('full_name, phone, email, role')
+          .eq('id', userId)
+          .maybeSingle();
+      if (mounted && data != null) {
+        setState(() {
+          _fullName = (data['full_name'] as String?) ?? '';
+          _phone = (data['phone'] as String?) ?? '';
+          if (data['email'] != null) _email = data['email'] as String;
+          if (data['role'] != null) _role = (data['role'] as String).toUpperCase();
+        });
+      }
+    } catch (_) {
+      // Offline fallback — already loaded from session
     }
   }
 
   void _showPersonalDetailsDialog() {
-    final emailController = TextEditingController(text: _email);
+    final nameController = TextEditingController(text: _fullName);
+    final phoneController = TextEditingController(text: _phone);
+    bool saving = false;
+
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Personal Details'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email Address',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.email_outlined),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Personal Details'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Full Name
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Full Name',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
+                      textCapitalization: TextCapitalization.words,
+                    ),
+                    const SizedBox(height: 16),
+                    // Phone
+                    TextField(
+                      controller: phoneController,
+                      decoration: const InputDecoration(
+                        labelText: 'Phone Number',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.phone_outlined),
+                        hintText: '+256 700 000 000',
+                      ),
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 16),
+                    // Email (read-only)
+                    TextField(
+                      readOnly: true,
+                      decoration: InputDecoration(
+                        labelText: 'Email Address',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.email_outlined),
+                        suffixIcon: const Icon(Icons.lock_outline, size: 18),
+                        filled: true,
+                        fillColor: Colors.grey.shade100,
+                      ),
+                      controller: TextEditingController(text: _email),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Email cannot be changed. Contact admin for email changes.',
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                    ),
+                    const SizedBox(height: 12),
+                    // Role badge
+                    Row(
+                      children: [
+                        const Text('Role: ', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            _role,
+                            style: TextStyle(
+                              color: Colors.blue.shade700,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                keyboardType: TextInputType.emailAddress,
               ),
-              const SizedBox(height: 16),
-              const Text(
-                'Note: Updating email may require verification.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                // Future: Implement Supabase updateUser here
-                setState(() => _email = emailController.text);
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Profile updated successfully'), backgroundColor: Colors.green),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue.shade700,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: const Text('Save', style: TextStyle(color: Colors.white)),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          setDialogState(() => saving = true);
+                          try {
+                            final supabase = Supabase.instance.client;
+                            final userId = supabase.auth.currentUser?.id;
+                            if (userId != null) {
+                              await supabase.from('users').update({
+                                'full_name': nameController.text.trim(),
+                                'phone': phoneController.text.trim(),
+                              }).eq('id', userId);
+                            }
+                            if (mounted) {
+                              setState(() {
+                                _fullName = nameController.text.trim();
+                                _phone = phoneController.text.trim();
+                              });
+                            }
+                            if (ctx.mounted) Navigator.pop(ctx);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Profile updated successfully'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            setDialogState(() => saving = false);
+                            if (ctx.mounted) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade700,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Save', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
         );
       },
     );
   }
 
   void _showChangePasswordDialog() {
-    final passwordController = TextEditingController();
+    final currentPassController = TextEditingController();
+    final newPassController = TextEditingController();
+    final confirmPassController = TextEditingController();
+    String? errorText;
+    bool saving = false;
+    bool showCurrentPass = false;
+    bool showNewPass = false;
+    bool showConfirmPass = false;
+
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Change Password'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: passwordController,
-                decoration: const InputDecoration(
-                  labelText: 'New Password',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock_outline),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Change Password'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: currentPassController,
+                      decoration: InputDecoration(
+                        labelText: 'Current Password',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(showCurrentPass ? Icons.visibility_off : Icons.visibility, size: 20),
+                          onPressed: () => setDialogState(() => showCurrentPass = !showCurrentPass),
+                        ),
+                      ),
+                      obscureText: !showCurrentPass,
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: newPassController,
+                      decoration: InputDecoration(
+                        labelText: 'New Password',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.lock_reset),
+                        suffixIcon: IconButton(
+                          icon: Icon(showNewPass ? Icons.visibility_off : Icons.visibility, size: 20),
+                          onPressed: () => setDialogState(() => showNewPass = !showNewPass),
+                        ),
+                        helperText: 'Minimum 8 characters',
+                      ),
+                      obscureText: !showNewPass,
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: confirmPassController,
+                      decoration: InputDecoration(
+                        labelText: 'Confirm New Password',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.lock_reset),
+                        suffixIcon: IconButton(
+                          icon: Icon(showConfirmPass ? Icons.visibility_off : Icons.visibility, size: 20),
+                          onPressed: () => setDialogState(() => showConfirmPass = !showConfirmPass),
+                        ),
+                      ),
+                      obscureText: !showConfirmPass,
+                    ),
+                    if (errorText != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Text(
+                          errorText!,
+                          style: const TextStyle(color: Colors.red, fontSize: 13),
+                        ),
+                      ),
+                  ],
                 ),
-                obscureText: true,
               ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                // Future: Implement Supabase updateUser({password}) here
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Password changed successfully'), backgroundColor: Colors.green),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue.shade700,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              child: const Text('Update', style: TextStyle(color: Colors.white)),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          // Validate
+                          if (currentPassController.text.isEmpty) {
+                            setDialogState(() => errorText = 'Please enter your current password');
+                            return;
+                          }
+                          if (newPassController.text.length < 8) {
+                            setDialogState(() => errorText = 'New password must be at least 8 characters');
+                            return;
+                          }
+                          if (newPassController.text != confirmPassController.text) {
+                            setDialogState(() => errorText = 'Passwords do not match');
+                            return;
+                          }
+
+                          setDialogState(() {
+                            saving = true;
+                            errorText = null;
+                          });
+
+                          try {
+                            final supabase = Supabase.instance.client;
+                            // Verify current password by re-authenticating
+                            await supabase.auth.signInWithPassword(
+                              email: _email,
+                              password: currentPassController.text,
+                            );
+                            // Update to new password
+                            await supabase.auth.updateUser(
+                              UserAttributes(password: newPassController.text),
+                            );
+                            if (ctx.mounted) Navigator.pop(ctx);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Password changed successfully'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            setDialogState(() {
+                              saving = false;
+                              errorText = e.toString().contains('Invalid login')
+                                  ? 'Current password is incorrect'
+                                  : 'Error: ${e.toString()}';
+                            });
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade700,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Update', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -858,13 +1083,24 @@ class _ProfileTabState extends ConsumerState<_ProfileTab> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  _email,
+                  _fullName.isNotEmpty ? _fullName : _email,
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                 ),
+                if (_fullName.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      _email,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white.withOpacity(0.8),
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
