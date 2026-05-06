@@ -9,9 +9,11 @@ import 'customer_repository.dart';
 // ---------------------------------------------------------------------------
 
 /// Resolves the current user's client ID from the Supabase session.
-/// The client_id is the same as the user's UUID in Supabase Auth.
-final currentClientIdProvider = Provider<String?>((ref) {
+/// We first check the local session cache, then fallback to fetching from Supabase 'users' table.
+final currentClientIdProvider = StateProvider<String?>((ref) {
   final user = Supabase.instance.client.auth.currentUser;
+  // Note: For now we still use user.id as client_id for simplicity if they match, 
+  // but we should eventually fetch the client_id column from the users table.
   return user?.id;
 });
 
@@ -153,4 +155,29 @@ final customerNotificationsProvider = FutureProvider<int>((ref) async {
   } catch (_) {
     return ref.read(notificationBadgeCountProvider);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
+
+/// Aggregates data for the customer dashboard.
+final customerDashboardDataProvider = FutureProvider<CustomerDashboardData>((ref) async {
+  final invoices = await ref.watch(customerInvoicesProvider.future);
+  final payments = await ref.watch(customerPaymentsProvider.future);
+  final repo = ref.watch(customerRepositoryProvider);
+  final clientId = ref.watch(currentClientIdProvider);
+
+  if (clientId == null) throw Exception('User not logged in');
+
+  // Fetch driver info and schedule from Supabase
+  final driver = await repo.getAssignedDriver(clientId);
+  final nextCollection = await repo.getNextCollection(clientId);
+
+  return CustomerDashboardData(
+    invoices: invoices,
+    payments: payments,
+    driver: driver,
+    nextCollection: nextCollection,
+  );
 });

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/auth_provider.dart';
 import '../auth/login_screen.dart';
+import 'customer_dashboard_screen.dart';
 import 'customer_complaints_screen.dart';
 import 'customer_invoices_screen.dart';
 import 'customer_payments_screen.dart';
@@ -10,10 +11,11 @@ import 'customer_provider.dart';
 
 /// Customer Portal — main entry point shown when role = Customer.
 ///
-/// Provides three tabs:
-///   1. Invoices  — active and historical invoices with status badges
-///   2. Payments  — payment history
-///   3. Complaints — complaint history (submission added in Task 36)
+/// Provides four tabs:
+///   1. Dashboard  — unified summary of account, schedule and driver
+///   2. Invoices   — active and historical invoices with status badges
+///   3. Payments   — payment history
+///   4. Complaints — complaint history
 class CustomerHomeScreen extends ConsumerStatefulWidget {
   const CustomerHomeScreen({super.key});
 
@@ -26,6 +28,11 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
   int _selectedIndex = 0;
 
   static const _tabs = [
+    _TabItem(
+      label: 'Dashboard',
+      icon: Icons.dashboard_outlined,
+      activeIcon: Icons.dashboard,
+    ),
     _TabItem(
       label: 'Invoices',
       icon: Icons.receipt_long_outlined,
@@ -44,6 +51,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
   ];
 
   static const _screens = [
+    CustomerDashboardScreen(),
     CustomerInvoicesScreen(),
     CustomerPaymentsScreen(),
     CustomerComplaintsScreen(),

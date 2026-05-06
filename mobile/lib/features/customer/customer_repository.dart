@@ -257,6 +257,89 @@ class CustomerRepository {
         .limit(50);
     return List<Map<String, dynamic>>.from(rows as List);
   }
+
+  // -------------------------------------------------------------------------
+  // Dashboard & Scheduling
+  // -------------------------------------------------------------------------
+
+  /// Fetches the assigned driver info for the client.
+  Future<DriverInfo?> getAssignedDriver(String clientId) async {
+    try {
+      // Logic: A client is linked to a route via route_clients. 
+      // A route is linked to a driver via route_drivers.
+      final response = await _client
+          .from('route_clients')
+          .select('route_id, routes(id, route_drivers(users(full_name, phone)))')
+          .eq('client_id', clientId)
+          .maybeSingle();
+
+      if (response == null) return null;
+
+      final route = response['routes'] as Map<String, dynamic>?;
+      if (route == null) return null;
+
+      final drivers = route['route_drivers'] as List<dynamic>?;
+      if (drivers == null || drivers.isEmpty) return null;
+
+      final user = drivers.first['users'] as Map<String, dynamic>?;
+      if (user == null) return null;
+
+      return DriverInfo(
+        name: user['full_name'] as String,
+        phone: user['phone'] as String?,
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Fetches the next scheduled collection date for the client.
+  Future<String?> getNextCollection(String clientId) async {
+    try {
+      final response = await _client
+          .from('collection_schedules')
+          .select('day_of_week, specific_date')
+          .eq('client_id', clientId)
+          .order('specific_date', ascending: true)
+          .limit(1)
+          .maybeSingle();
+
+      if (response == null) return "TBD (Contact Admin)";
+
+      if (response['specific_date'] != null) {
+        return response['specific_date'] as String;
+      }
+
+      if (response['day_of_week'] != null) {
+        final days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        return "Weekly on ${days[response['day_of_week'] as int]}";
+      }
+
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+}
+
+class CustomerDashboardData {
+  final List<InvoicesLocalData> invoices;
+  final List<PaymentsLocalData> payments;
+  final DriverInfo? driver;
+  final String? nextCollection;
+
+  CustomerDashboardData({
+    required this.invoices,
+    required this.payments,
+    this.driver,
+    this.nextCollection,
+  });
+}
+
+class DriverInfo {
+  final String name;
+  final String? phone;
+  DriverInfo({required this.name, this.phone});
 }
 
 /// Thrown when a network-required operation is attempted while offline.

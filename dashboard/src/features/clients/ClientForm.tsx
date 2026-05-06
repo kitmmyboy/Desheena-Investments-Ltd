@@ -3,6 +3,8 @@ import { useAuth } from '../auth/AuthContext'
 import { useCreateClient, useUpdateClient } from './useClients'
 import type { ClientWithContractStatus, CreateClientInput } from './useClients'
 import ContractPanel from './ContractPanel'
+import ClientPortalPanel from './ClientPortalPanel'
+import SchedulingPanel from './SchedulingPanel'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -293,9 +295,13 @@ export default function ClientForm({ client, onClose, onSuccess }: ClientFormPro
         />
       </Field>
 
-      {/* Contract section — edit mode only */}
+      {/* Additional Management — edit mode only */}
       {isEdit && client && (
-        <ContractPanel clientId={client.id} />
+        <div className="space-y-6">
+          <ContractPanel clientId={client.id} />
+          <SchedulingPanel clientId={client.id} />
+          <ClientPortalPanel client={client} />
+        </div>
       )}
 
       {/* Actions */}
