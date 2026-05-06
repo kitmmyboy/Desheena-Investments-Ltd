@@ -94,12 +94,10 @@ function SmsTemplateEditor({
 function InvoicePreview({
   header,
   footer,
-  showVat,
   showPaymentInstructions,
 }: {
   header: string
   footer: string
-  showVat: boolean
   showPaymentInstructions: boolean
 }) {
   return (
@@ -107,8 +105,7 @@ function InvoicePreview({
       <div className="text-center font-bold text-base mb-3 border-b pb-3">{header || 'Desheena Investments Ltd'}</div>
       <div className="space-y-1 text-gray-700">
         <div className="flex justify-between"><span>Service: Waste Collection</span><span>UGX 50,000</span></div>
-        {showVat && <div className="flex justify-between text-gray-500"><span>VAT (18%)</span><span>UGX 9,000</span></div>}
-        <div className="flex justify-between font-bold border-t pt-1 mt-1"><span>Total</span><span>UGX {showVat ? '59,000' : '50,000'}</span></div>
+        <div className="flex justify-between font-bold border-t pt-1 mt-1"><span>Total</span><span>UGX 50,000</span></div>
       </div>
       {showPaymentInstructions && (
         <div className="mt-3 p-2 bg-gray-50 rounded text-xs text-gray-600">
@@ -147,7 +144,7 @@ export default function TemplatesSettings() {
   async function handleSave() {
     const keys = [
       'invoice_template_header', 'invoice_template_footer',
-      'invoice_show_vat', 'invoice_show_payment_instructions',
+      'invoice_show_payment_instructions',
       'sms_template_invoice', 'sms_template_payment', 'sms_template_complaint',
     ]
     await saveMutation.mutateAsync(keys.map((k) => ({ key: k, value: values[k] ?? '' })))
@@ -187,21 +184,6 @@ export default function TemplatesSettings() {
             </div>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-800">Show VAT Line</p>
-                <p className="text-xs text-gray-500">Display VAT breakdown on invoice</p>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={values['invoice_show_vat'] === 'true'}
-                onClick={() => handleToggle('invoice_show_vat')}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${values['invoice_show_vat'] === 'true' ? 'bg-blue-600' : 'bg-gray-200'}`}
-              >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${values['invoice_show_vat'] === 'true' ? 'translate-x-6' : 'translate-x-1'}`} />
-              </button>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
                 <p className="text-sm font-medium text-gray-800">Show Payment Instructions</p>
                 <p className="text-xs text-gray-500">Display payment instructions on invoice</p>
               </div>
@@ -222,7 +204,6 @@ export default function TemplatesSettings() {
             <InvoicePreview
               header={values['invoice_template_header'] ?? ''}
               footer={values['invoice_template_footer'] ?? ''}
-              showVat={values['invoice_show_vat'] === 'true'}
               showPaymentInstructions={values['invoice_show_payment_instructions'] === 'true'}
             />
           </div>

@@ -19,8 +19,8 @@ export default function CompanySettings() {
 
   async function handleSave() {
     const keys = [
-      'company_name', 'company_phone', 'company_email', 'company_address', 'company_tin',
-      'invoice_footer', 'sms_sender_id', 'invoice_due_days', 'vat_rate',
+      'company_name', 'company_phone', 'company_email', 'company_address',
+      'invoice_footer', 'sms_sender_id', 'invoice_due_days',
     ]
     await saveMutation.mutateAsync(keys.map((k) => ({ key: k, value: values[k] ?? '' })))
     setSaveSuccess(true)
@@ -45,7 +45,6 @@ export default function CompanySettings() {
             { key: 'company_phone', label: 'Phone', placeholder: '+256 700 000000' },
             { key: 'company_email', label: 'Email', placeholder: 'info@desheena.co.ug' },
             { key: 'company_address', label: 'Physical Address', placeholder: 'Plot 123, Kampala Road, Kampala' },
-            { key: 'company_tin', label: 'TIN / Tax ID', placeholder: '1000000000' },
           ].map(({ key, label, placeholder }) => (
             <div key={key} className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
               <label className="text-sm font-medium text-gray-800 block pt-2">{label}</label>
@@ -105,21 +104,6 @@ export default function CompanySettings() {
               min={1}
               value={values['invoice_due_days'] ?? '14'}
               onChange={(e) => handleChange('invoice_due_days', e.target.value)}
-              className={baseInput}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
-            <div>
-              <label className="text-sm font-medium text-gray-800 block">VAT Rate (%)</label>
-              <p className="text-xs text-gray-500 mt-0.5">Set to 0 to disable VAT</p>
-            </div>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              value={values['vat_rate'] ?? '18'}
-              onChange={(e) => handleChange('vat_rate', e.target.value)}
               className={baseInput}
             />
           </div>

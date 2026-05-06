@@ -41,25 +41,12 @@ function getStatusClass(status: Invoice['status']): string {
 }
 
 // ---------------------------------------------------------------------------
-// VAT calculation (Uganda standard rate: 18%)
-// ---------------------------------------------------------------------------
-
-const VAT_RATE = 0.18
-
-function calculateVat(totalAmount: number): { subtotal: number; vat: number } {
-  const subtotal = totalAmount / (1 + VAT_RATE)
-  const vat = totalAmount - subtotal
-  return { subtotal, vat }
-}
-
-// ---------------------------------------------------------------------------
 // Invoice HTML generation
 // ---------------------------------------------------------------------------
 
 function generateInvoiceHtml(invoice: Invoice): string {
   const clientName = invoice.clients?.name ?? 'Unknown Client'
   const clientPhone = invoice.clients?.phone ?? '—'
-  const { subtotal, vat } = calculateVat(invoice.amount)
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -146,11 +133,7 @@ function generateInvoiceHtml(invoice: Invoice): string {
     <tbody>
       <tr>
         <td>Waste collection services — ${formatPeriod(invoice.invoice_period)}</td>
-        <td style="text-align: right;">${formatCurrency(Math.round(subtotal))}</td>
-      </tr>
-      <tr>
-        <td>VAT (18%)</td>
-        <td style="text-align: right;">${formatCurrency(Math.round(vat))}</td>
+        <td style="text-align: right;">${formatCurrency(invoice.amount)}</td>
       </tr>
       <tr class="total-row">
         <td>Total</td>

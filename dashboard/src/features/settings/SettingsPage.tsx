@@ -109,7 +109,6 @@ const TABS: TabDef[] = [
         description: 'Default values applied when generating invoices.',
         fields: [
           { key: 'invoice_due_days', label: 'Invoice Due Days', type: 'number', min: 1, placeholder: '14', description: 'Days after generation before an invoice becomes overdue.' },
-          { key: 'vat_rate', label: 'VAT Rate (%)', type: 'number', min: 0, placeholder: '18', description: 'VAT percentage applied to invoices. Set to 0 to disable VAT.' },
         ],
       },
     ],

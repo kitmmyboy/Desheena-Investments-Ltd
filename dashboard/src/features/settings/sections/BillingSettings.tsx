@@ -24,7 +24,7 @@ export default function BillingSettings() {
 
   async function handleSave() {
     const keys = [
-      'vat_rate', 'late_payment_fee_pct', 'grace_period_days',
+      'late_payment_fee_pct', 'grace_period_days',
       'invoice_number_prefix', 'invoice_next_number',
       'payment_terms', 'invoice_auto_generate',
     ]
@@ -45,14 +45,6 @@ export default function BillingSettings() {
         <p className="text-sm text-gray-500 mb-5">Configure invoice generation, fees, and payment terms.</p>
 
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
-            <div>
-              <label className="text-sm font-medium text-gray-800 block">VAT Rate (%)</label>
-              <p className="text-xs text-gray-500 mt-0.5">Set to 0 to disable VAT</p>
-            </div>
-            <input type="number" min={0} max={100} value={values['vat_rate'] ?? '18'} onChange={(e) => handleChange('vat_rate', e.target.value)} className={baseInput} />
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
             <div>
               <label className="text-sm font-medium text-gray-800 block">Late Payment Fee (%)</label>
