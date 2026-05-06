@@ -556,7 +556,7 @@ function MonthBreakdownPanel({ breakdown, defaulter }: { breakdown: MonthBreakdo
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white">
-            {breakdown.map((entry) => {
+            {[...breakdown].reverse().map((entry) => {
               const statusStyles: Record<MonthBreakdown['status'], string> = {
                 paid: 'bg-green-100 text-green-800',
                 partial: 'bg-yellow-100 text-yellow-800',
