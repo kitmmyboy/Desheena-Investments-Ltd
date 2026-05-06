@@ -323,22 +323,22 @@ export default function ContractsPage() {
   return (
     <div className="flex flex-col gap-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Contracts</h2>
           <p className="text-sm text-gray-500 mt-0.5">
             Manage client contracts and their lifecycle
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {!isLoading && count > 0 && (
-            <span className="text-sm text-gray-500">
-              {from}–{to} of {count.toLocaleString()} contracts
+            <span className="text-sm text-gray-500 hidden sm:inline">
+              {from}–{to} of {count.toLocaleString()}
             </span>
           )}
           <button
             onClick={openCreate}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+            className="px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
           >
             + New Contract
           </button>
@@ -481,7 +481,7 @@ export default function ContractsPage() {
         </div>
 
         {/* Pagination controls */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <span>Rows per page:</span>
             <select

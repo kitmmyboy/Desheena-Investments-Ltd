@@ -208,14 +208,14 @@ export default function CollectionsPage() {
   return (
     <div className="flex flex-col gap-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Collections log</h2>
           <p className="text-sm text-gray-500 mt-0.5">
             Real-time view of all waste collection records
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {/* View mode toggle */}
           <div
             className="inline-flex rounded-lg border border-gray-300 overflow-hidden text-sm"
@@ -231,7 +231,7 @@ export default function CollectionsPage() {
               }`}
               aria-pressed={viewMode === 'table'}
             >
-              Table View
+              Table
             </button>
             <button
               onClick={() => setViewMode('map')}
@@ -242,13 +242,13 @@ export default function CollectionsPage() {
               }`}
               aria-pressed={viewMode === 'map'}
             >
-              Map View
+              Map
             </button>
           </div>
 
-          {viewMode === 'table' && !isLoading && (
-            <span className="text-sm text-gray-500">
-              {count > 0 ? `${from}–${to} of ${count.toLocaleString()} records` : '0 records'}
+          {viewMode === 'table' && !isLoading && count > 0 && (
+            <span className="text-sm text-gray-500 hidden sm:inline">
+              {from}–{to} of {count.toLocaleString()}
             </span>
           )}
         </div>
@@ -331,7 +331,7 @@ export default function CollectionsPage() {
         </div>
 
         {/* Pagination controls */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
           {/* Page size selector */}
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <span>Rows per page:</span>

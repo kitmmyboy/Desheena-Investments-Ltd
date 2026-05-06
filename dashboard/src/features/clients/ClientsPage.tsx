@@ -239,14 +239,14 @@ export default function ClientsPage() {
   return (
     <div className="flex flex-col gap-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Clients</h2>
           <p className="text-sm text-gray-500 mt-0.5">
             Manage waste collection clients
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {/* View mode toggle */}
           <div
             className="inline-flex rounded-lg border border-gray-300 overflow-hidden text-sm"
@@ -262,7 +262,7 @@ export default function ClientsPage() {
               }`}
               aria-pressed={viewMode === 'table'}
             >
-              Table View
+              Table
             </button>
             <button
               onClick={() => setViewMode('map')}
@@ -273,24 +273,24 @@ export default function ClientsPage() {
               }`}
               aria-pressed={viewMode === 'map'}
             >
-              Map View
+              Map
             </button>
           </div>
 
-          {viewMode === 'table' && !isLoading && (
-            <span className="text-sm text-gray-500">
-              {count > 0 ? `${from}–${to} of ${count.toLocaleString()} clients` : '0 clients'}
+          {viewMode === 'table' && !isLoading && count > 0 && (
+            <span className="text-sm text-gray-500 hidden sm:inline">
+              {from}–{to} of {count.toLocaleString()}
             </span>
           )}
           <button
             onClick={() => navigate('/dashboard/clients/import')}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
+            className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
           >
             Import CSV
           </button>
           <button
             onClick={openCreate}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+            className="px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
           >
             + Add client
           </button>
@@ -451,7 +451,7 @@ export default function ClientsPage() {
         </div>
 
         {/* Pagination controls */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <span>Rows per page:</span>
             <select
