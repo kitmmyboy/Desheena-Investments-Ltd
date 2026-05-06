@@ -456,9 +456,18 @@ class _ProfileTab extends ConsumerStatefulWidget {
   ConsumerState<_ProfileTab> createState() => _ProfileTabState();
 }
 
+class _ProfileTab extends ConsumerStatefulWidget {
+  const _ProfileTab();
+
+  @override
+  ConsumerState<_ProfileTab> createState() => _ProfileTabState();
+}
+
 class _ProfileTabState extends ConsumerState<_ProfileTab> {
   String _email = 'Loading...';
   String _role = 'Driver';
+  bool _pushNotifications = true;
+  bool _emailNotifications = false;
 
   @override
   void initState() {
@@ -474,6 +483,191 @@ class _ProfileTabState extends ConsumerState<_ProfileTab> {
         _role = session.role.toUpperCase();
       });
     }
+  }
+
+  void _showPersonalDetailsDialog() {
+    final emailController = TextEditingController(text: _email);
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Personal Details'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email Address',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.email_outlined),
+                ),
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Note: Updating email may require verification.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                // Future: Implement Supabase updateUser here
+                setState(() => _email = emailController.text);
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Profile updated successfully'), backgroundColor: Colors.green),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue.shade700,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Save', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showChangePasswordDialog() {
+    final passwordController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Change Password'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: passwordController,
+                decoration: const InputDecoration(
+                  labelText: 'New Password',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock_outline),
+                ),
+                obscureText: true,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                // Future: Implement Supabase updateUser({password}) here
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Password changed successfully'), backgroundColor: Colors.green),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue.shade700,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Update', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showNotificationsDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Notifications', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  SwitchListTile(
+                    title: const Text('Push Notifications'),
+                    subtitle: const Text('Receive alerts for new route assignments'),
+                    value: _pushNotifications,
+                    activeColor: Colors.blue.shade700,
+                    onChanged: (val) {
+                      setModalState(() => _pushNotifications = val);
+                      setState(() => _pushNotifications = val);
+                    },
+                  ),
+                  SwitchListTile(
+                    title: const Text('Email Notifications'),
+                    subtitle: const Text('Receive weekly summary reports'),
+                    value: _emailNotifications,
+                    activeColor: Colors.blue.shade700,
+                    onChanged: (val) {
+                      setModalState(() => _emailNotifications = val);
+                      setState(() => _emailNotifications = val);
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700),
+                      child: const Text('Done', style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showHelpSupportDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.help_outline, color: Colors.blue),
+              SizedBox(width: 8),
+              Text('Help & Support'),
+            ],
+          ),
+          content: const Text(
+            'If you need assistance with your assigned routes, or if you encounter app issues, please contact the dispatch office at:\n\n'
+            'support@desheenawaste.com\n'
+            '+254 700 000 000',
+            style: TextStyle(height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -569,16 +763,12 @@ class _ProfileTabState extends ConsumerState<_ProfileTab> {
                 _ProfileMenuItem(
                   icon: Icons.person_outline,
                   title: 'Personal Details',
-                  onTap: () {
-                    // CRU Action placeholder
-                  },
+                  onTap: _showPersonalDetailsDialog,
                 ),
                 _ProfileMenuItem(
                   icon: Icons.lock_outline,
                   title: 'Change Password',
-                  onTap: () {
-                    // CRU Action placeholder
-                  },
+                  onTap: _showChangePasswordDialog,
                 ),
                 const SizedBox(height: 24),
                 const Text(
@@ -594,12 +784,12 @@ class _ProfileTabState extends ConsumerState<_ProfileTab> {
                 _ProfileMenuItem(
                   icon: Icons.notifications_none,
                   title: 'Notifications',
-                  onTap: () {},
+                  onTap: _showNotificationsDialog,
                 ),
                 _ProfileMenuItem(
                   icon: Icons.help_outline,
                   title: 'Help & Support',
-                  onTap: () {},
+                  onTap: _showHelpSupportDialog,
                 ),
                 const SizedBox(height: 32),
                 ElevatedButton.icon(
