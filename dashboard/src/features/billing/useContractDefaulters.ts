@@ -47,19 +47,21 @@ export function useContractDefaulters(): {
   const { data, isLoading, error } = useQuery({
     queryKey: ['contractDefaulters'],
     queryFn: async () => {
-      // Fetch all contracts with client join
+      // Fetch all contracts with client join — increase limit to handle large client bases
       const { data: contractRows, error: contractsError } = await supabase
         .from('contracts')
         .select(
           'id, client_id, monthly_rate, start_date, end_date, status, updated_at, clients(name, phone, email, location_text, zone)'
         )
+        .limit(10000)
 
       if (contractsError) throw new Error(contractsError.message)
 
-      // Fetch all invoices with contract_id, invoice_period, paid_amount
+      // Fetch all invoices — increase limit to ensure all payment history is captured
       const { data: invoiceRows, error: invoicesError } = await supabase
         .from('invoices')
-        .select('contract_id, invoice_period, paid_amount')
+        .select('id, contract_id, invoice_period, paid_amount')
+        .limit(10000)
 
       if (invoicesError) throw new Error(invoicesError.message)
 

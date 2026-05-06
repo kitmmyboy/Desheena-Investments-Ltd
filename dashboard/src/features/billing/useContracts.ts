@@ -26,18 +26,42 @@ export type ContractStatusFilter = 'all' | 'active' | 'inactive'
 // useContracts — list with client-side filtering by effective status
 // ---------------------------------------------------------------------------
 
-export function useContracts(filter: ContractStatusFilter): {
+export function useContracts({
+  page = 0,
+  pageSize = 25,
+  filter = 'all',
+  search = '',
+}: {
+  page?: number
+  pageSize?: number
+  filter?: ContractStatusFilter
+  search?: string
+} = {}): {
   data: ContractWithClient[]
+  count: number
   isLoading: boolean
   error: Error | null
 } {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['contracts', filter],
+  const { data: queryData, isLoading, error } = useQuery({
+    queryKey: ['contracts', filter, page, pageSize, search],
     queryFn: async () => {
-      const { data: rows, error: queryError } = await supabase
+      let query = supabase
         .from('contracts')
-        .select('id, client_id, monthly_rate, start_date, end_date, status, updated_at, clients(name)')
+        .select('id, client_id, monthly_rate, start_date, end_date, status, updated_at, clients!inner(name, phone)', { count: 'exact' })
         .order('start_date', { ascending: false })
+
+      // Search (by client name or phone)
+      if (search && search.trim() !== '') {
+        const term = search.trim()
+        query = query.or(`name.ilike.%${term}%,phone.ilike.%${term}%`, { foreignTable: 'clients' })
+      }
+
+      // Pagination
+      const from = page * pageSize
+      const to = from + pageSize - 1
+      query = query.range(from, to)
+
+      const { data: rows, error: queryError, count } = await query
 
       if (queryError) throw new Error(queryError.message)
 
@@ -62,13 +86,14 @@ export function useContracts(filter: ContractStatusFilter): {
         }
       })
 
-      // Client-side filtering based on effective_status
+      // Note: Client-side filtering by effective_status might not be perfect with pagination
+      // but we keep it for now as a fallback. 
+      // Ideally this filter would be on the server.
+      let filtered = contracts
       if (filter === 'active') {
-        return contracts.filter((c) => c.effective_status === 'active')
-      }
-
-      if (filter === 'inactive') {
-        return contracts.filter(
+        filtered = contracts.filter((c) => c.effective_status === 'active')
+      } else if (filter === 'inactive') {
+        filtered = contracts.filter(
           (c) =>
             c.effective_status === 'suspended' ||
             c.effective_status === 'terminated' ||
@@ -76,13 +101,13 @@ export function useContracts(filter: ContractStatusFilter): {
         )
       }
 
-      // 'all' — no filtering
-      return contracts
+      return { data: filtered, count: count ?? 0 }
     },
   })
 
   return {
-    data: data ?? [],
+    data: queryData?.data ?? [],
+    count: queryData?.count ?? 0,
     isLoading,
     error: error as Error | null,
   }

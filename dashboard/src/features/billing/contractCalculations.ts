@@ -13,6 +13,7 @@ export interface MonthBreakdown {
   monthly_rate: number
   status: 'paid' | 'partial' | 'unpaid'
   amount_owed: number
+  invoice_id?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -109,7 +110,7 @@ export function computeOutstandingBalance(expectedTotal: number, amountPaid: num
 export function computeMonthBreakdown(
   months: string[],
   monthlyRate: number,
-  invoices: Array<{ invoice_period: string | null; paid_amount: number }>
+  invoices: Array<{ id?: string; invoice_period: string | null; paid_amount: number }>
 ): MonthBreakdown[] {
   return months.map((month) => {
     const invoice = invoices.find((inv) => inv.invoice_period === month)
@@ -135,6 +136,7 @@ export function computeMonthBreakdown(
       monthly_rate: monthlyRate,
       status,
       amount_owed: amountOwed,
+      invoice_id: invoice?.id,
     }
   })
 }

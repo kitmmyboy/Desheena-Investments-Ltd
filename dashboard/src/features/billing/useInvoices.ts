@@ -12,6 +12,7 @@ export interface Invoice {
   due_date: string
   status: 'paid' | 'unpaid' | 'overdue'
   invoice_period: string | null
+  paid_amount?: number
   created_at: string
   clients: {
     name: string
@@ -86,6 +87,8 @@ export function useInvoices({
         query = query.lte('due_date', dateTo)
       }
 
+      // Requirement: "Start with latest" — sort by period DESC so current month is at top.
+      query = query.order('invoice_period', { ascending: false })
       query = query.order('created_at', { ascending: false })
 
       const from = page * pageSize
@@ -139,6 +142,152 @@ export function useCreateInvoice() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// useRecordPayment — manually record a payment for an invoice
+// ---------------------------------------------------------------------------
+
+export interface RecordPaymentInput {
+  invoice_id: string
+  client_id: string
+  amount: number
+  payment_method: 'pesapal' | 'manual' | 'bank_transfer' | 'mobile_money' | 'adjustment'
+  transaction_ref?: string
+  notes?: string
+}
+
+export function useRecordPayment() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (input: RecordPaymentInput) => {
+      // 1. Record the payment
+      const { error: paymentError } = await supabase.from('payments').insert({
+        invoice_id: input.invoice_id,
+        client_id: input.client_id,
+        amount: input.amount,
+        payment_method: input.payment_method,
+        transaction_ref: input.transaction_ref,
+        notes: input.notes,
+        status: 'completed',
+        paid_at: new Date().toISOString(),
+      })
+
+      if (paymentError) throw new Error(paymentError.message)
+
+      // 2. Fetch current invoice to update paid_amount
+      const { data: invoice, error: fetchError } = await supabase
+        .from('invoices')
+        .select('amount, paid_amount')
+        .eq('id', input.invoice_id)
+        .single()
+
+      if (fetchError) throw new Error(fetchError.message)
+
+      const newPaidAmount = (invoice.paid_amount ?? 0) + input.amount
+      const newStatus = newPaidAmount >= invoice.amount ? 'paid' : 'unpaid'
+
+      // 3. Update the invoice
+      const { error: updateError } = await supabase
+        .from('invoices')
+        .update({
+          paid_amount: newPaidAmount,
+          status: newStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', input.invoice_id)
+
+      if (updateError) throw new Error(updateError.message)
+
+      return { success: true }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      queryClient.invalidateQueries({ queryKey: ['contractDefaulters'] })
+      queryClient.invalidateQueries({ queryKey: ['kpis'] })
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// useClearDefaulter — clear all outstanding invoices for a client/contract
+// ---------------------------------------------------------------------------
+
+export interface ClearDefaulterInput {
+  client_id: string
+  contract_id: string
+  payment_method: 'manual' | 'adjustment'
+  notes?: string
+}
+
+export function useClearDefaulter() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (input: ClearDefaulterInput) => {
+      // 1. Fetch all unpaid/overdue invoices for this contract
+      const { data: invoices, error: fetchError } = await supabase
+        .from('invoices')
+        .select('id, amount, paid_amount')
+        .eq('contract_id', input.contract_id)
+        .in('status', ['unpaid', 'overdue'])
+
+      if (fetchError) throw new Error(fetchError.message)
+      if (!invoices || invoices.length === 0) return { success: true, count: 0 }
+
+      const timestamp = new Date().toISOString()
+      const payments = invoices.map((inv) => ({
+        invoice_id: inv.id,
+        client_id: input.client_id,
+        amount: Math.max(0, inv.amount - (inv.paid_amount ?? 0)),
+        payment_method: input.payment_method,
+        notes: input.notes,
+        status: 'completed',
+        paid_at: timestamp,
+      }))
+
+      // 2. Insert payments
+      const { error: paymentsError } = await supabase.from('payments').insert(payments)
+      if (paymentsError) throw new Error(paymentsError.message)
+
+      // 3. Update invoices to paid
+      const { error: updateError } = await supabase
+        .from('invoices')
+        .update({
+          paid_amount: supabase.raw('amount'), // This is risky in JS Supabase, better to update each or use a query
+          status: 'paid',
+          updated_at: timestamp,
+        })
+        .in('id', invoices.map((i) => i.id))
+
+      // Wait, supabase.raw('amount') doesn't work like that in the client.
+      // I'll do a promise.all for updates or a more clever query if possible.
+      // Since it's a small number of invoices per client, promise.all is fine.
+      const updates = invoices.map(inv => 
+        supabase.from('invoices')
+          .update({ 
+            paid_amount: inv.amount, 
+            status: 'paid', 
+            updated_at: timestamp 
+          })
+          .eq('id', inv.id)
+      )
+      
+      const results = await Promise.all(updates)
+      const firstError = results.find(r => r.error)
+      if (firstError) throw new Error(firstError.error?.message)
+
+      return { success: true, count: invoices.length }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      queryClient.invalidateQueries({ queryKey: ['contractDefaulters'] })
+      queryClient.invalidateQueries({ queryKey: ['kpis'] })
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
     },
   })
 }

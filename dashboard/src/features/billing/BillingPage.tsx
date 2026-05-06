@@ -16,6 +16,7 @@ import InvoicePdfButton from './InvoicePdfButton'
 import { useAuth } from '../auth/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { downloadCsv } from '../../lib/exportCsv'
+import ManualPaymentModal from './ManualPaymentModal'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -187,7 +188,7 @@ const PAGE_SIZE_OPTIONS = [25, 50, 100]
 
 const invoiceColumnHelper = createColumnHelper<Invoice>()
 
-function buildInvoiceColumns() {
+function buildInvoiceColumns(onRecordPayment: (invoice: Invoice) => void) {
   return [
     invoiceColumnHelper.accessor((row) => row.clients?.name ?? '—', {
       id: 'client_name',
@@ -221,19 +222,27 @@ function buildInvoiceColumns() {
       cell: (info) => <StatusBadge status={info.getValue()} />,
     }),
     invoiceColumnHelper.display({
-      id: 'pdf',
-      header: '',
-      cell: (info) => <InvoicePdfButton invoice={info.row.original} />,
-    }),
-    invoiceColumnHelper.display({
-      id: 'pay',
-      header: '',
-      cell: (info) => <PayNowButton invoice={info.row.original} />,
+      id: 'actions',
+      header: 'Actions',
+      cell: (info) => (
+        <div className="flex items-center gap-2">
+          <InvoicePdfButton invoice={info.row.original} />
+          <PayNowButton invoice={info.row.original} />
+          {info.row.original.status !== 'paid' && (
+            <button
+              onClick={() => onRecordPayment(info.row.original)}
+              className="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded text-xs font-medium border border-blue-200 transition-colors"
+            >
+              Record
+            </button>
+          )}
+        </div>
+      ),
     }),
   ]
 }
 
-function InvoicesTab() {
+function InvoicesTab({ onRecordPayment }: { onRecordPayment: (invoice: Invoice) => void }) {
   const { role } = useAuth()
   const isFinanceOrAdmin = role === 'Finance' || role === 'Admin'
 
@@ -260,7 +269,7 @@ function InvoicesTab() {
     [count, pagination.pageSize]
   )
 
-  const columns = useMemo(() => buildInvoiceColumns(), [])
+  const columns = useMemo(() => buildInvoiceColumns(onRecordPayment), [onRecordPayment])
 
   const table = useReactTable({
     data,
@@ -487,7 +496,12 @@ type DefaulterFilter = 'all' | 'active' | 'ended'
 // Month breakdown panel (rendered inside expanded rows)
 // ---------------------------------------------------------------------------
 
-function MonthBreakdownPanel({ breakdown, defaulter }: { breakdown: MonthBreakdown[]; defaulter: ContractDefaulter }) {
+interface MonthBreakdownPanelProps {
+  defaulter: ContractDefaulter
+  onRecordPayment: (invoiceId: string, amount: number) => void
+}
+
+function MonthBreakdownPanel({ defaulter, onRecordPayment }: MonthBreakdownPanelProps) {
   const hasPhone = defaulter.client_phone && defaulter.client_phone !== '—'
 
   return (
@@ -544,7 +558,7 @@ function MonthBreakdownPanel({ breakdown, defaulter }: { breakdown: MonthBreakdo
       </div>
 
       {/* Month breakdown table */}
-      {breakdown.length === 0 ? (
+      {defaulter.month_breakdown.length === 0 ? (
         <div className="text-sm text-gray-400 py-2">No month breakdown available.</div>
       ) : (
         <table className="min-w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
@@ -553,10 +567,11 @@ function MonthBreakdownPanel({ breakdown, defaulter }: { breakdown: MonthBreakdo
               <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Month</th>
               <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Amount Owed (UGX)</th>
               <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Status</th>
+              <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white">
-            {breakdown.map((entry) => {
+            {defaulter.month_breakdown.map((entry) => {
               const statusStyles: Record<MonthBreakdown['status'], string> = {
                 paid: 'bg-green-100 text-green-800',
                 partial: 'bg-yellow-100 text-yellow-800',
@@ -573,6 +588,26 @@ function MonthBreakdownPanel({ breakdown, defaulter }: { breakdown: MonthBreakdo
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusStyles[entry.status]}`}>
                       {statusLabels[entry.status]}
                     </span>
+                  </td>
+                  <td className="px-4 py-2 whitespace-nowrap text-right space-x-2">
+                    {entry.status !== 'paid' && entry.invoice_id && (
+                      <button
+                        onClick={() => onRecordPayment(entry.invoice_id!, entry.amount_owed)}
+                        className="text-blue-600 hover:text-blue-800 font-medium text-xs bg-blue-50 px-2 py-1 rounded"
+                      >
+                        Record Payment
+                      </button>
+                    )}
+                    {entry.invoice_id && (
+                      <InvoicePdfButton invoice={{
+                        id: entry.invoice_id,
+                        invoice_period: entry.month,
+                        status: entry.status === 'paid' ? 'paid' : 'unpaid',
+                        amount: entry.monthly_rate,
+                        paid_amount: entry.paid_amount,
+                        clients: { name: defaulter.client_name, phone: defaulter.client_phone }
+                      } as any} />
+                    )}
                   </td>
                 </tr>
               )
@@ -655,10 +690,41 @@ function buildDefaulterColumns() {
         )
       },
     }),
+    defaulterColumnHelper.display({
+      id: 'actions',
+      header: 'Actions',
+      cell: (info) => (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              // This will trigger the Modal with clientId and outstandingBalance, but NO invoiceId
+              // The Modal will then use useClearDefaulter
+              info.table.options.meta?.onClearDefaulter({
+                clientId: info.row.original.client_id,
+                clientName: info.row.original.client_name,
+                contractId: info.row.original.contract_id,
+                outstandingBalance: info.row.original.outstanding_balance,
+              })
+            }}
+            className="text-white bg-green-600 hover:bg-green-700 px-3 py-1 rounded-lg text-xs font-semibold transition-colors"
+          >
+            Pay / Adjust
+          </button>
+        </div>
+      ),
+    }),
+  ]
+}
   ]
 }
 
-function DefaultersTab() {
+function DefaultersTab({
+  onRecordPayment,
+  onClearDefaulter,
+}: {
+  onRecordPayment: (invoiceId: string, amount: number, clientName: string, clientId: string) => void
+  onClearDefaulter: (data: any) => void
+}) {
   const { data, isLoading, error } = useContractDefaulters()
   const [filter, setFilter] = useState<DefaulterFilter>('all')
   const [expanded, setExpanded] = useState<ExpandedState>({})
@@ -678,6 +744,9 @@ function DefaultersTab() {
     onExpandedChange: setExpanded,
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
+    meta: {
+      onClearDefaulter,
+    },
   })
 
   function handleExportCsv() {
@@ -790,8 +859,10 @@ function DefaultersTab() {
                       <tr>
                         <td colSpan={colCount} className="px-0 py-0 bg-gray-50">
                           <MonthBreakdownPanel
-                            breakdown={row.original.month_breakdown}
                             defaulter={row.original}
+                            onRecordPayment={(invoiceId, amount) =>
+                              onRecordPayment(invoiceId, amount, row.original.client_name, row.original.client_id)
+                            }
                           />
                         </td>
                       </tr>
@@ -876,14 +947,34 @@ function buildContractColumns() {
 
 function ContractsTab() {
   const [filter, setFilter] = useState<ContractStatusFilter>('all')
-  const { data, isLoading, error } = useContracts(filter)
+  const [search, setSearch] = useState('')
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 25,
+  })
+
+  const { data, count, isLoading, error } = useContracts({
+    page: pagination.pageIndex,
+    pageSize: pagination.pageSize,
+    filter,
+    search,
+  })
+
+  const pageCount = useMemo(
+    () => Math.max(1, Math.ceil(count / pagination.pageSize)),
+    [count, pagination.pageSize]
+  )
 
   const columns = useMemo(() => buildContractColumns(), [])
 
   const table = useReactTable({
     data,
     columns,
+    pageCount,
+    state: { pagination },
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
   })
 
   function handleExportCsv() {
@@ -899,26 +990,51 @@ function ContractsTab() {
     downloadCsv('contracts.csv', [headers, ...rows])
   }
 
+  const from = pagination.pageIndex * pagination.pageSize + 1
+  const to = Math.min((pagination.pageIndex + 1) * pagination.pageSize, count)
+
   return (
     <div className="flex flex-col gap-4">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 justify-between">
         <div className="flex flex-wrap items-center gap-3">
+          {/* Search */}
+          <div className="relative">
+            <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </span>
+            <input
+              type="text"
+              placeholder="Search contacts..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value)
+                setPagination((p) => ({ ...p, pageIndex: 0 }))
+              }}
+              className="pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-64 transition-all"
+            />
+          </div>
+
           {/* Status filter */}
           <select
             value={filter}
-            onChange={(e) => setFilter(e.target.value as ContractStatusFilter)}
+            onChange={(e) => {
+              setFilter(e.target.value as ContractStatusFilter)
+              setPagination((p) => ({ ...p, pageIndex: 0 }))
+            }}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             aria-label="Filter by contract status"
           >
-            <option value="all">All</option>
+            <option value="all">All statuses</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive / Ended</option>
           </select>
 
-          {!isLoading && (
+          {!isLoading && count > 0 && (
             <span className="text-sm text-gray-500">
-              {data.length} contract{data.length !== 1 ? 's' : ''}
+              {from}–{to} of {count.toLocaleString()} contracts
             </span>
           )}
         </div>
@@ -987,6 +1103,48 @@ function ContractsTab() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <span>Rows per page:</span>
+            <select
+              value={pagination.pageSize}
+              onChange={(e) =>
+                setPagination({ pageIndex: 0, pageSize: Number(e.target.value) })
+              }
+              className="border border-gray-300 rounded px-2 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <span>
+              Page {pagination.pageIndex + 1} of {pageCount}
+            </span>
+            <button
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+              aria-label="Previous page"
+            >
+              ← Prev
+            </button>
+            <button
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+              aria-label="Next page"
+            >
+              Next →
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -1000,6 +1158,13 @@ type Tab = 'invoices' | 'defaulters' | 'contracts'
 
 export default function BillingPage() {
   const [activeTab, setActiveTab] = useState<Tab>('invoices')
+  const [selectedPayment, setSelectedPayment] = useState<{
+    clientId: string
+    clientName: string
+    contractId?: string
+    outstandingBalance: number
+    invoiceId?: string
+  } | null>(null)
 
   return (
     <div className="flex flex-col gap-4">
@@ -1049,7 +1214,18 @@ export default function BillingPage() {
         aria-labelledby="tab-invoices"
         hidden={activeTab !== 'invoices'}
       >
-        {activeTab === 'invoices' && <InvoicesTab />}
+        {activeTab === 'invoices' && (
+          <InvoicesTab
+            onRecordPayment={(invoice) =>
+              setSelectedPayment({
+                clientId: invoice.client_id,
+                clientName: invoice.clients?.name ?? 'Unknown',
+                outstandingBalance: invoice.amount - (invoice.paid_amount ?? 0),
+                invoiceId: invoice.id,
+              })
+            }
+          />
+        )}
       </div>
 
       <div
@@ -1058,7 +1234,19 @@ export default function BillingPage() {
         aria-labelledby="tab-defaulters"
         hidden={activeTab !== 'defaulters'}
       >
-        {activeTab === 'defaulters' && <DefaultersTab />}
+        {activeTab === 'defaulters' && (
+          <DefaultersTab
+            onRecordPayment={(invoiceId, amount, clientName, clientId) =>
+              setSelectedPayment({
+                clientId,
+                clientName,
+                outstandingBalance: amount,
+                invoiceId,
+              })
+            }
+            onClearDefaulter={(data) => setSelectedPayment(data)}
+          />
+        )}
       </div>
 
       <div
@@ -1069,6 +1257,17 @@ export default function BillingPage() {
       >
         {activeTab === 'contracts' && <ContractsTab />}
       </div>
+
+      {selectedPayment && (
+        <ManualPaymentModal
+          clientId={selectedPayment.clientId}
+          clientName={selectedPayment.clientName}
+          contractId={selectedPayment.contractId}
+          outstandingBalance={selectedPayment.outstandingBalance}
+          invoiceId={selectedPayment.invoiceId}
+          onClose={() => setSelectedPayment(null)}
+        />
+      )}
     </div>
   )
 }

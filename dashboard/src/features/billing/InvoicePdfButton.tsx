@@ -47,74 +47,83 @@ function getStatusClass(status: Invoice['status']): string {
 function generateInvoiceHtml(invoice: Invoice): string {
   const clientName = invoice.clients?.name ?? 'Unknown Client'
   const clientPhone = invoice.clients?.phone ?? '—'
+  const isPaid = invoice.status === 'paid'
+  const title = isPaid ? 'RECEIPT' : 'INVOICE'
+  const paidAmount = invoice.paid_amount ?? 0
+  const balance = Math.max(0, invoice.amount - paidAmount)
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Invoice ${invoice.id}</title>
+  <title>${title} ${invoice.id}</title>
   <style>
     body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; color: #333; }
     .header { border-bottom: 2px solid #2E7D32; padding-bottom: 20px; margin-bottom: 30px; }
     .company-name { font-size: 24px; font-weight: bold; color: #2E7D32; }
     .company-details { font-size: 13px; color: #555; margin-top: 6px; line-height: 1.6; }
-    .invoice-title { font-size: 20px; font-weight: bold; margin: 20px 0; }
-    .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0; }
-    .detail-block { display: flex; flex-direction: column; }
-    .label { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.05em; }
-    .value { font-size: 14px; font-weight: 500; margin-top: 4px; }
+    .invoice-title { font-size: 24px; font-weight: bold; margin: 20px 0; color: #222; text-align: right; }
+    .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin: 30px 0; }
+    .detail-block { display: flex; flex-direction: column; margin-bottom: 12px; }
+    .label { font-size: 11px; color: #777; text-transform: uppercase; letter-spacing: 0.05em; font-weight: bold; }
+    .value { font-size: 14px; color: #111; margin-top: 2px; }
     .amount-table { width: 100%; border-collapse: collapse; margin: 30px 0; }
-    .amount-table th { background: #f5f5f5; padding: 10px; text-align: left; border: 1px solid #ddd; font-size: 13px; }
-    .amount-table td { padding: 10px; border: 1px solid #ddd; font-size: 14px; }
-    .total-row td { font-weight: bold; background: #f9f9f9; }
-    .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
-    .status-paid { background: #e8f5e9; color: #2E7D32; }
-    .status-unpaid { background: #fff8e1; color: #f57f17; }
-    .status-overdue { background: #ffebee; color: #c62828; }
-    .payment-instructions { background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; }
-    .payment-instructions h3 { margin: 0 0 10px 0; font-size: 14px; color: #333; }
-    .payment-instructions p { margin: 0; font-size: 13px; color: #555; line-height: 1.6; }
-    .footer { border-top: 1px solid #ddd; padding-top: 20px; margin-top: 40px; text-align: center; color: #666; font-size: 12px; }
-    @media print { body { margin: 20px; } }
+    .amount-table th { background: #f9f9f9; padding: 12px; text-align: left; border-bottom: 2px solid #eee; font-size: 12px; color: #555; text-transform: uppercase; }
+    .amount-table td { padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; }
+    .summary-row td { padding: 8px 12px; text-align: right; border: none; }
+    .summary-row .total-label { font-weight: bold; color: #555; }
+    .summary-row .total-value { font-weight: bold; color: #111; font-size: 16px; }
+    .status-badge { display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase; }
+    .status-paid { background: #e8f5e9; color: #2E7D32; border: 1px solid #c8e6c9; }
+    .status-unpaid { background: #fff8e1; color: #f57f17; border: 1px solid #ffecb3; }
+    .status-overdue { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
+    .payment-instructions { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 30px 0; border: 1px solid #eee; }
+    .payment-instructions h3 { margin: 0 0 10px 0; font-size: 13px; color: #333; text-transform: uppercase; }
+    .payment-instructions p { margin: 0; font-size: 13px; color: #666; line-height: 1.6; }
+    .footer { border-top: 1px solid #eee; padding-top: 20px; margin-top: 50px; text-align: center; color: #999; font-size: 11px; }
+    @media print { body { margin: 20px; } .payment-instructions { background: white !important; border: 1px solid #ddd; } }
   </style>
 </head>
 <body>
   <div class="header">
-    <div class="company-name">Desheena Investments Ltd</div>
-    <div class="company-details">
-      Kampala, Uganda<br />
-      Tel: +256 700 000000<br />
-      Email: info@desheena.co.ug
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div>
+        <div class="company-name">Desheena Investments Ltd</div>
+        <div class="company-details">
+          Plot 45, Mawanda Road, Kampala<br />
+          Tel: +256 700 123456 | +256 772 123456<br />
+          Email: payments@desheena.click
+        </div>
+      </div>
+      <div class="invoice-title">${title}</div>
     </div>
   </div>
 
-  <div class="invoice-title">INVOICE</div>
-
   <div class="details-grid">
     <div>
-      <div class="detail-block" style="margin-bottom: 16px;">
+      <div class="detail-block">
         <span class="label">Bill To</span>
-        <span class="value">${clientName}</span>
+        <span class="value" style="font-weight: bold; font-size: 16px;">${clientName}</span>
       </div>
-      <div class="detail-block" style="margin-bottom: 16px;">
-        <span class="label">Phone</span>
+      <div class="detail-block">
+        <span class="label">Phone Number</span>
         <span class="value">${clientPhone}</span>
       </div>
     </div>
-    <div>
-      <div class="detail-block" style="margin-bottom: 16px;">
-        <span class="label">Invoice Number</span>
-        <span class="value" style="font-size: 12px; word-break: break-all;">${invoice.id}</span>
+    <div style="text-align: right;">
+      <div class="detail-block" style="align-items: flex-end;">
+        <span class="label">${title} #</span>
+        <span class="value" style="font-family: monospace;">${invoice.id.slice(0, 8).toUpperCase()}</span>
       </div>
-      <div class="detail-block" style="margin-bottom: 16px;">
-        <span class="label">Invoice Period</span>
+      <div class="detail-block" style="align-items: flex-end;">
+        <span class="label">Period</span>
         <span class="value">${formatPeriod(invoice.invoice_period)}</span>
       </div>
-      <div class="detail-block" style="margin-bottom: 16px;">
-        <span class="label">Due Date</span>
-        <span class="value">${formatDate(invoice.due_date)}</span>
+      <div class="detail-block" style="align-items: flex-end;">
+        <span class="label">Date</span>
+        <span class="value">${formatDate(new Date().toISOString())}</span>
       </div>
-      <div class="detail-block">
+      <div class="detail-block" style="align-items: flex-end;">
         <span class="label">Status</span>
         <span class="value">
           <span class="status-badge ${getStatusClass(invoice.status)}">${getStatusLabel(invoice.status)}</span>
@@ -126,30 +135,55 @@ function generateInvoiceHtml(invoice: Invoice): string {
   <table class="amount-table">
     <thead>
       <tr>
-        <th>Description</th>
-        <th style="text-align: right;">Amount</th>
+        <th style="width: 70%;">Service Description</th>
+        <th style="text-align: right;">Amount (UGX)</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td>Waste collection services — ${formatPeriod(invoice.invoice_period)}</td>
-        <td style="text-align: right;">${formatCurrency(invoice.amount)}</td>
-      </tr>
-      <tr class="total-row">
-        <td>Total</td>
-        <td style="text-align: right;">${formatCurrency(invoice.amount)}</td>
+        <td style="padding: 20px 12px;">
+          <strong>Waste Collection Services</strong><br/>
+          <span style="font-size: 12px; color: #666;">Service for the month of ${formatPeriod(invoice.invoice_period)}</span>
+        </td>
+        <td style="text-align: right; padding: 20px 12px; vertical-align: top;">${formatCurrency(invoice.amount)}</td>
       </tr>
     </tbody>
   </table>
 
-  <div class="payment-instructions">
-    <h3>Payment Instructions</h3>
-    <p>Pay via Pesapal or bank transfer. Reference: ${invoice.id}</p>
+  <div style="display: flex; justify-content: flex-end;">
+    <table style="width: 300px;">
+      <tr class="summary-row">
+        <td class="total-label">Subtotal:</td>
+        <td>${formatCurrency(invoice.amount)}</td>
+      </tr>
+      <tr class="summary-row">
+        <td class="total-label">Amount Paid:</td>
+        <td style="color: #2E7D32;">(-) ${formatCurrency(paidAmount)}</td>
+      </tr>
+      <tr class="summary-row" style="border-top: 2px solid #eee;">
+        <td class="total-label total-value">Balance Due:</td>
+        <td class="total-value" style="${balance > 0 ? 'color: #c62828;' : 'color: #2E7D32;'}">${formatCurrency(balance)}</td>
+      </tr>
+    </table>
   </div>
 
+  ${!isPaid ? `
+  <div class="payment-instructions">
+    <h3>Payment Methods</h3>
+    <p><strong>Mobile Money:</strong> Pay to Merchant Code: 123456 (Desheena)<br/>
+    <strong>Bank Transfer:</strong> Stanbic Bank, A/C: 9030012345678, Branch: Forest Mall</p>
+    <p style="margin-top: 8px; font-style: italic;">Please use Invoice # ${invoice.id.slice(0, 8).toUpperCase()} as payment reference.</p>
+  </div>
+  ` : `
+  <div class="payment-instructions" style="background: #e8f5e9; border-color: #c8e6c9;">
+    <h3>Payment Confirmation</h3>
+    <p>This document serves as a formal receipt for the payment of ${formatCurrency(paidAmount)} recorded on ${formatDate(new Date().toISOString())}. Thank you for choosing Desheena Investments Ltd.</p>
+  </div>
+  `}
+
   <div class="footer">
-    <p>Thank you for your business</p>
-    <p style="margin-top: 8px;">Desheena Investments Ltd &mdash; Kampala, Uganda</p>
+    <p>This is a computer-generated document. No signature required.</p>
+    <p style="margin-top: 8px; font-weight: bold;">DESHEENA INVESTMENTS LTD &bull; Excellence in Waste Management</p>
   </div>
 </body>
 </html>`
