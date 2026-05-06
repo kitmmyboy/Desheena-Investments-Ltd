@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'connectivity_indicator.dart';
+import '../auth/auth_provider.dart';
 import 'route_provider.dart';
 
 /// Displays the driver's assigned route on an OpenStreetMap map.
@@ -54,6 +55,8 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
 
   /// Fetches the device's current GPS position and updates [_driverPosition].
   ///
+  /// Also reports the position to Supabase for dashboard tracking.
+  ///
   /// Requests location permission if not already granted. Silently ignores
   /// errors so the map still renders without a driver marker when GPS is
   /// unavailable.
@@ -78,6 +81,19 @@ class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
         setState(() {
           _driverPosition = LatLng(position.latitude, position.longitude);
         });
+
+        // Report to dashboard (tracking)
+        final repo = ref.read(routeRepositoryProvider);
+        final session = await ref.read(authRepositoryProvider).getOfflineSession();
+        if (session != null) {
+          await repo.updateDriverLocation(
+            driverId: session.userId,
+            lat: position.latitude,
+            lng: position.longitude,
+            heading: position.heading,
+            speed: position.speed,
+          );
+        }
       }
     } catch (_) {
       // GPS unavailable — driver marker simply won't be shown.

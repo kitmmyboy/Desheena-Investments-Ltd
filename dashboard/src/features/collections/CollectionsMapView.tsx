@@ -1,21 +1,5 @@
-import { useEffect, useRef } from 'react'
-import L from 'leaflet'
-import { MapContainer, TileLayer, useMap } from 'react-leaflet'
-import 'leaflet.markercluster'
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
-import markerIcon from 'leaflet/dist/images/marker-icon.png'
-import markerShadow from 'leaflet/dist/images/marker-shadow.png'
 import { useCollections, type CollectionRecord } from './useCollections'
-
-// ---------------------------------------------------------------------------
-// Fix Leaflet default icon issue in React (webpack/vite asset handling)
-// ---------------------------------------------------------------------------
-delete (L.Icon.Default.prototype as any)._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconUrl: markerIcon,
-  iconRetinaUrl: markerIcon2x,
-  shadowUrl: markerShadow,
-})
+import MapboxMap from '../../components/MapboxMap'
 
 // ---------------------------------------------------------------------------
 // Color-coded marker helpers
@@ -34,91 +18,6 @@ function markerColor(record: CollectionRecord): string {
   return '#eab308'
 }
 
-function createDivIcon(color: string): L.DivIcon {
-  return L.divIcon({
-    className: '',
-    html: `<div style="
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background-color: ${color};
-      border: 2px solid white;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-    "></div>`,
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
-    popupAnchor: [0, -10],
-  })
-}
-
-// ---------------------------------------------------------------------------
-// Inner component — uses useMap() to access the Leaflet map instance
-// ---------------------------------------------------------------------------
-
-interface ClusterLayerProps {
-  records: CollectionRecord[]
-}
-
-function ClusterLayer({ records }: ClusterLayerProps) {
-  const map = useMap()
-  // Keep a stable ref to the cluster group so we can clean it up on unmount
-  const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null)
-
-  useEffect(() => {
-    // Remove previous cluster group if it exists
-    if (clusterGroupRef.current) {
-      map.removeLayer(clusterGroupRef.current)
-    }
-
-    const clusterGroup = L.markerClusterGroup({
-      chunkedLoading: true,
-      maxClusterRadius: 60,
-    })
-    clusterGroupRef.current = clusterGroup
-
-    for (const record of records) {
-      // Skip records without GPS coordinates
-      if (record.gps_lat == null || record.gps_lng == null) continue
-
-      const color = markerColor(record)
-      const icon = createDivIcon(color)
-
-      const marker = L.marker([record.gps_lat, record.gps_lng], { icon })
-
-      const clientName = record.clients?.name ?? 'Unknown client'
-      const driverEmail = record.users?.email ?? 'Unknown driver'
-      const collectedAt = record.collected_at
-        ? new Date(record.collected_at).toLocaleString()
-        : '—'
-      const weight =
-        record.weight_kg != null ? `${record.weight_kg.toFixed(1)} kg` : '—'
-      const syncLabel =
-        record.sync_status === 'synced' ? 'Synced' : 'Pending sync'
-
-      marker.bindPopup(`
-        <div style="min-width: 160px; font-size: 13px; line-height: 1.5;">
-          <strong>${clientName}</strong><br/>
-          Driver: ${driverEmail}<br/>
-          Waste type: ${record.waste_type ?? '—'}<br/>
-          Weight: ${weight}<br/>
-          Collected: ${collectedAt}<br/>
-          Status: <span style="color:${color}; font-weight:600;">${syncLabel}</span>
-        </div>
-      `)
-
-      clusterGroup.addLayer(marker)
-    }
-
-    map.addLayer(clusterGroup)
-
-    return () => {
-      map.removeLayer(clusterGroup)
-    }
-  }, [map, records])
-
-  return null
-}
-
 // ---------------------------------------------------------------------------
 // Legend component
 // ---------------------------------------------------------------------------
@@ -126,7 +25,7 @@ function ClusterLayer({ records }: ClusterLayerProps) {
 function MapLegend() {
   return (
     <div
-      className="absolute bottom-6 right-3 z-[1000] bg-white rounded-lg shadow-md border border-gray-200 px-3 py-2 text-xs text-gray-700"
+      className="absolute bottom-6 right-3 z-[10] bg-white rounded-lg shadow-md border border-gray-200 px-3 py-2 text-xs text-gray-700"
       aria-label="Map legend"
     >
       <p className="font-semibold mb-1.5 text-gray-800">Legend</p>
@@ -163,7 +62,7 @@ function MapLegend() {
 // ---------------------------------------------------------------------------
 
 // Default center: Kampala, Uganda
-const KAMPALA_CENTER: [number, number] = [0.3476, 32.5825]
+const KAMPALA_CENTER: [number, number] = [32.5825, 0.3476]
 const DEFAULT_ZOOM = 12
 
 export default function CollectionsMapView() {
@@ -180,6 +79,39 @@ export default function CollectionsMapView() {
     (r) => r.gps_lat != null && r.gps_lng != null
   )
 
+  const markers = mappableRecords.map((record) => {
+    const color = markerColor(record)
+    const clientName = record.clients?.name ?? 'Unknown client'
+    const driverEmail = record.users?.email ?? 'Unknown driver'
+    const collectedAt = record.collected_at
+      ? new Date(record.collected_at).toLocaleString()
+      : '—'
+    const weight =
+      record.weight_kg != null ? `${record.weight_kg.toFixed(1)} kg` : '—'
+    const syncLabel =
+      record.sync_status === 'synced' ? 'Synced' : 'Pending sync'
+
+    return {
+      id: record.id,
+      lng: record.gps_lng!,
+      lat: record.gps_lat!,
+      color: color,
+      popup: `
+        <div style="min-width: 160px; font-size: 13px; line-height: 1.5;">
+          <strong>${clientName}</strong><br/>
+          Driver: ${driverEmail}<br/>
+          Waste type: ${record.waste_type ?? '—'}<br/>
+          Weight: ${weight}<br/>
+          Collected: ${collectedAt}<br/>
+          Status: <span style="color:${color}; font-weight:600;">${syncLabel}</span>
+        </div>
+      `,
+      properties: {
+        color: color
+      }
+    }
+  })
+
   return (
     <div className="flex flex-col gap-3">
       {/* Status bar */}
@@ -193,7 +125,9 @@ export default function CollectionsMapView() {
             Showing {mappableRecords.length.toLocaleString()} collection
             {mappableRecords.length !== 1 ? 's' : ''} with GPS coordinates
             {records.length > mappableRecords.length && (
-              <> ({records.length - mappableRecords.length} without GPS hidden)</>
+              <> ({records.length - mappableRecords.length} without GPS hidden) <br/>
+              <b>Total Records:</b> {records.length}
+              </>
             )}
           </span>
         )}
@@ -201,19 +135,14 @@ export default function CollectionsMapView() {
 
       {/* Map container */}
       <div className="relative h-[600px] rounded-lg overflow-hidden border border-gray-200 shadow-sm">
-        <MapContainer
-          center={KAMPALA_CENTER}
-          zoom={DEFAULT_ZOOM}
-          className="h-full w-full"
-          // Prevent scroll-wheel zoom from hijacking page scroll
-          scrollWheelZoom={true}
-        >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        {!isLoading && (
+          <MapboxMap
+            center={KAMPALA_CENTER}
+            zoom={DEFAULT_ZOOM}
+            markers={markers}
+            cluster={true}
           />
-          {!isLoading && <ClusterLayer records={mappableRecords} />}
-        </MapContainer>
+        )}
 
         {/* Legend — positioned inside the map container */}
         <MapLegend />

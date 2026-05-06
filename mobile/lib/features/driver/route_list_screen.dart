@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/storage_warning_widget.dart';
 import '../auth/auth_provider.dart';
@@ -226,6 +227,12 @@ class _ClientCard extends StatelessWidget {
                     style: theme.textTheme.bodyMedium,
                   ),
                 ),
+                if (client.gpsLat != null && client.gpsLng != null)
+                  IconButton(
+                    icon: const Icon(Icons.directions, color: Colors.blue),
+                    tooltip: 'Navigate',
+                    onPressed: () => _launchNavigation(client.gpsLat!, client.gpsLng!),
+                  ),
               ],
             ),
             const SizedBox(height: 4),
@@ -277,6 +284,26 @@ class _ClientCard extends StatelessWidget {
         builder: (_) => CollectionRecordingScreen(client: client),
       ),
     );
+  }
+
+  Future<void> _launchNavigation(double lat, double lng) async {
+    final url = 'google.navigation:q=$lat,$lng';
+    final appleUrl = 'https://maps.apple.com/?q=$lat,$lng';
+    
+    // For universal compatibility, we can also use:
+    final webUrl = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
+
+    try {
+      if (await canLaunchUrl(Uri.parse(url))) {
+        await launchUrl(Uri.parse(url));
+      } else if (await canLaunchUrl(Uri.parse(appleUrl))) {
+        await launchUrl(Uri.parse(appleUrl));
+      } else {
+        await launchUrl(Uri.parse(webUrl), mode: LaunchMode.externalApplication);
+      }
+    } catch (_) {
+      // Handle launch error
+    }
   }
 
   String _formatWasteType(String raw) {

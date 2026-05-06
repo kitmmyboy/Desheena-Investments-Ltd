@@ -1,66 +1,25 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import L from 'leaflet'
-import { MapContainer, TileLayer, useMap } from 'react-leaflet'
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
-import markerIcon from 'leaflet/dist/images/marker-icon.png'
-import markerShadow from 'leaflet/dist/images/marker-shadow.png'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
+import MapboxMap from '../../components/MapboxMap'
 import {
   useRouteDetail,
   useAssignClientToRoute,
   useAssignDriverToRoute,
   useRemoveClientFromRoute,
+  useDriverLocations,
 } from './useRoutes'
-
-// ---------------------------------------------------------------------------
-// Fix Leaflet default icon issue in React (vite asset handling)
-// ---------------------------------------------------------------------------
-delete (L.Icon.Default.prototype as any)._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconUrl: markerIcon,
-  iconRetinaUrl: markerIcon2x,
-  shadowUrl: markerShadow,
-})
 
 // ---------------------------------------------------------------------------
 // Map constants
 // ---------------------------------------------------------------------------
 
-const KAMPALA_CENTER: [number, number] = [0.3476, 32.5825]
+const KAMPALA_CENTER: [number, number] = [32.5825, 0.3476]
 const DEFAULT_ZOOM = 12
 
 // ---------------------------------------------------------------------------
-// Client pin icon
-// ---------------------------------------------------------------------------
-
-function createClientPin(label: string): L.DivIcon {
-  return L.divIcon({
-    className: '',
-    html: `<div style="
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      background-color: #2563eb;
-      border: 2px solid white;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-      color: white;
-      font-size: 10px;
-      font-weight: 700;
-      font-family: sans-serif;
-    ">${label}</div>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-    popupAnchor: [0, -14],
-  })
-}
-
-// ---------------------------------------------------------------------------
-// RouteClientsLayer — renders client pins on the map
+// Client interface
 // ---------------------------------------------------------------------------
 
 interface ClientPin {
@@ -70,47 +29,6 @@ interface ClientPin {
   gps_lat: number
   gps_lng: number
   sequence: number
-}
-
-function RouteClientsLayer({ pins }: { pins: ClientPin[] }) {
-  const map = useMap()
-  const layerRef = useRef<L.LayerGroup | null>(null)
-
-  useEffect(() => {
-    if (layerRef.current) {
-      map.removeLayer(layerRef.current)
-    }
-
-    const group = L.layerGroup()
-    layerRef.current = group
-
-    for (const pin of pins) {
-      const marker = L.marker([pin.gps_lat, pin.gps_lng], {
-        icon: createClientPin(String(pin.sequence)),
-      })
-      marker.bindPopup(`
-        <div style="min-width: 150px; font-size: 13px; line-height: 1.6;">
-          <strong style="font-size: 14px;">#${pin.sequence} ${pin.name}</strong><br/>
-          <span style="color: #6b7280;">${pin.location_text}</span>
-        </div>
-      `)
-      group.addLayer(marker)
-    }
-
-    map.addLayer(group)
-
-    // Fit bounds if we have pins
-    if (pins.length > 0) {
-      const bounds = L.latLngBounds(pins.map((p) => [p.gps_lat, p.gps_lng]))
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 })
-    }
-
-    return () => {
-      map.removeLayer(group)
-    }
-  }, [map, pins])
-
-  return null
 }
 
 // ---------------------------------------------------------------------------
@@ -192,6 +110,10 @@ export default function RouteDetailPage() {
       gps_lng: rc.clients!.gps_lng,
       sequence: rc.sequence_order ?? idx + 1,
     }))
+
+  const { data: driverLocations } = useDriverLocations()
+  const assignedDriverId = route?.route_drivers?.[0]?.driver_id
+  const assignedDriverLocation = driverLocations?.find(loc => loc.driver_id === assignedDriverId)
 
   // ---------------------------------------------------------------------------
   // Handlers
@@ -490,7 +412,7 @@ export default function RouteDetailPage() {
         </form>
       </div>
 
-      {/* OpenStreetMap — client GPS pins */}
+      {/* Mapbox — client GPS pins */}
       <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
         <h2 className="mb-4 text-base font-semibold text-gray-900">Route map</h2>
         {mapPins.length === 0 ? (
@@ -499,18 +421,32 @@ export default function RouteDetailPage() {
           </div>
         ) : (
           <div className="h-[480px] overflow-hidden rounded-lg border border-gray-200">
-            <MapContainer
+            <MapboxMap
               center={KAMPALA_CENTER}
               zoom={DEFAULT_ZOOM}
-              className="h-full w-full"
-              scrollWheelZoom={true}
-            >
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-              <RouteClientsLayer pins={mapPins} />
-            </MapContainer>
+              markers={[
+                ...mapPins.map(pin => ({
+                  id: pin.id,
+                  lng: pin.gps_lng,
+                  lat: pin.gps_lat,
+                  color: '#2563eb',
+                  popup: `<div style="min-width: 150px; font-size: 13px; line-height: 1.6;">
+                    <strong style="font-size: 14px;">#${pin.sequence} ${pin.name}</strong><br/>
+                    <span style="color: #6b7280;">${pin.location_text}</span>
+                  </div>`
+                })),
+                ...(assignedDriverLocation ? [{
+                  id: `driver-${assignedDriverLocation.driver_id}`,
+                  lng: assignedDriverLocation.lng,
+                  lat: assignedDriverLocation.lat,
+                  color: '#ef4444', // Red for driver
+                  popup: `<div style="min-width: 150px; font-size: 13px; line-height: 1.6;">
+                    <strong style="font-size: 14px;">Driver: ${assignedDriverLocation.users?.full_name || assignedDriverLocation.users?.email}</strong><br/>
+                    <span style="color: #6b7280;">Last updated: ${new Date(assignedDriverLocation.updated_at).toLocaleTimeString()}</span>
+                  </div>`
+                }] : [])
+              ]}
+            />
           </div>
         )}
       </div>

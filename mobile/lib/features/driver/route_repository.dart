@@ -124,4 +124,33 @@ class RouteRepository {
     String routeId,
   ) =>
       _routesDao.getClientsForRoute(routeId);
+
+  // ---------------------------------------------------------------------------
+  // Real-time tracking
+  // ---------------------------------------------------------------------------
+
+  /// Updates the driver's current position in the `driver_locations` table.
+  ///
+  /// Implements Requirement for real-time tracking from the dashboard.
+  Future<void> updateDriverLocation({
+    required String driverId,
+    required double lat,
+    required double lng,
+    double? heading,
+    double? speed,
+  }) async {
+    try {
+      await _client.from('driver_locations').upsert({
+        'driver_id': driverId,
+        'lat': lat,
+        'lng': lng,
+        'heading': heading,
+        'speed': speed,
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      // Silently fail if offline or error occurs; tracking is best-effort.
+      print('Failed to update driver location: $e');
+    }
+  }
 }

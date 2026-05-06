@@ -228,3 +228,33 @@ export function useRemoveClientFromRoute() {
     },
   })
 }
+
+// ---------------------------------------------------------------------------
+// useDriverLocations — fetches real-time driver locations
+// ---------------------------------------------------------------------------
+
+export interface DriverLocation {
+  driver_id: string
+  lat: number
+  lng: number
+  updated_at: string
+  users?: {
+    email: string
+    full_name: string
+  }
+}
+
+export function useDriverLocations() {
+  return useQuery<DriverLocation[]>({
+    queryKey: ['driver_locations'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('driver_locations')
+        .select('*, users:driver_id(email, full_name)')
+
+      if (error) throw new Error(error.message)
+      return data as DriverLocation[]
+    },
+    refetchInterval: 10000, // Poll every 10 seconds
+  })
+}
