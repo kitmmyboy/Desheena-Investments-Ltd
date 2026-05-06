@@ -13,8 +13,6 @@ interface FormValues {
   phone: string
   email: string
   location_text: string
-  gps_lat: string
-  gps_lng: string
   service_frequency: string
   monthly_rate: string
   zone: string
@@ -24,8 +22,6 @@ interface FormErrors {
   name?: string
   phone?: string
   location_text?: string
-  gps_lat?: string
-  gps_lng?: string
   service_frequency?: string
   monthly_rate?: string
 }
@@ -47,18 +43,6 @@ function validate(values: FormValues): FormErrors {
   if (!values.name.trim()) errors.name = 'Name is required'
   if (!values.phone.trim()) errors.phone = 'Phone is required'
   if (!values.location_text.trim()) errors.location_text = 'Location is required'
-
-  if (!values.gps_lat.trim()) {
-    errors.gps_lat = 'GPS latitude is required'
-  } else if (isNaN(Number(values.gps_lat))) {
-    errors.gps_lat = 'Must be a valid number'
-  }
-
-  if (!values.gps_lng.trim()) {
-    errors.gps_lng = 'GPS longitude is required'
-  } else if (isNaN(Number(values.gps_lng))) {
-    errors.gps_lng = 'Must be a valid number'
-  }
 
   if (!values.service_frequency.trim()) {
     errors.service_frequency = 'Service frequency is required'
@@ -122,8 +106,6 @@ export default function ClientForm({ client, onClose, onSuccess }: ClientFormPro
     phone: client?.phone ?? '',
     email: client?.email ?? '',
     location_text: client?.location_text ?? '',
-    gps_lat: client?.gps_lat != null ? String(client.gps_lat) : '',
-    gps_lng: client?.gps_lng != null ? String(client.gps_lng) : '',
     service_frequency: client?.service_frequency ?? '',
     monthly_rate: client?.monthly_rate != null ? String(client.monthly_rate) : '',
     zone: client?.zone ?? '',
@@ -139,8 +121,6 @@ export default function ClientForm({ client, onClose, onSuccess }: ClientFormPro
       phone: client?.phone ?? '',
       email: client?.email ?? '',
       location_text: client?.location_text ?? '',
-      gps_lat: client?.gps_lat != null ? String(client.gps_lat) : '',
-      gps_lng: client?.gps_lng != null ? String(client.gps_lng) : '',
       service_frequency: client?.service_frequency ?? '',
       monthly_rate: client?.monthly_rate != null ? String(client.monthly_rate) : '',
       zone: client?.zone ?? '',
@@ -183,8 +163,8 @@ export default function ClientForm({ client, onClose, onSuccess }: ClientFormPro
       phone: values.phone.trim(),
       email: values.email.trim() || undefined,
       location_text: values.location_text.trim(),
-      gps_lat: Number(values.gps_lat),
-      gps_lng: Number(values.gps_lng),
+      gps_lat: 0,
+      gps_lng: 0,
       service_frequency: values.service_frequency.trim(),
       monthly_rate: Number(values.monthly_rate),
       zone: values.zone.trim() || undefined,
@@ -271,36 +251,6 @@ export default function ClientForm({ client, onClose, onSuccess }: ClientFormPro
           }`}
         />
       </Field>
-
-      {/* GPS coordinates */}
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="GPS Latitude" required error={errors.gps_lat}>
-          <input
-            type="number"
-            step="any"
-            value={values.gps_lat}
-            onChange={(e) => handleChange('gps_lat', e.target.value)}
-            onBlur={() => handleBlur('gps_lat')}
-            placeholder="e.g. 0.3476"
-            className={`border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.gps_lat ? 'border-red-400' : 'border-gray-300'
-            }`}
-          />
-        </Field>
-        <Field label="GPS Longitude" required error={errors.gps_lng}>
-          <input
-            type="number"
-            step="any"
-            value={values.gps_lng}
-            onChange={(e) => handleChange('gps_lng', e.target.value)}
-            onBlur={() => handleBlur('gps_lng')}
-            placeholder="e.g. 32.5825"
-            className={`border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.gps_lng ? 'border-red-400' : 'border-gray-300'
-            }`}
-          />
-        </Field>
-      </div>
 
       {/* Service frequency */}
       <Field label="Service frequency" required error={errors.service_frequency}>
