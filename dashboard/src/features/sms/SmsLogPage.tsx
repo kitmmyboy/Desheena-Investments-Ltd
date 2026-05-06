@@ -8,6 +8,7 @@ import {
   type SortingState,
 } from '@tanstack/react-table'
 import { useSmsLog, type SmsLogEntry } from './useSmsLog'
+import { supabase } from '../../lib/supabase'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -205,10 +206,16 @@ export default function SmsLogPage() {
   const [recipientPhone, setRecipientPhone] = useState('')
   const [deliveryStatus, setDeliveryStatus] = useState('all')
 
+  // Test SMS state
+  const [testPhone, setTestPhone] = useState('')
+  const [testSending, setTestSending] = useState(false)
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [showTestPanel, setShowTestPanel] = useState(false)
+
   const sortBy = sorting[0]?.id ?? 'sent_at'
   const sortDesc = sorting[0]?.desc ?? true
 
-  const { data, count, isLoading, error } = useSmsLog({
+  const { data, count, isLoading, error, refetch } = useSmsLog({
     page: pagination.pageIndex,
     pageSize: pagination.pageSize,
     dateFrom: dateFrom || undefined,
@@ -218,6 +225,43 @@ export default function SmsLogPage() {
     sortBy,
     sortDesc,
   })
+
+  async function handleTestSms() {
+    if (!testPhone.trim()) return
+    setTestSending(true)
+    setTestResult(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({
+            phone: testPhone.trim(),
+            message: 'Test SMS from Desheena dashboard. Gateway is working correctly.',
+            event_type: 'invoice_generated',
+          }),
+        }
+      )
+      const json = await res.json()
+      if (json.success) {
+        setTestResult({ success: true, message: `Sent! Message ID: ${json.message_id}` })
+        refetch()
+      } else {
+        setTestResult({ success: false, message: json.error ?? 'Send failed' })
+      }
+    } catch (err) {
+      setTestResult({ success: false, message: err instanceof Error ? err.message : 'Network error' })
+    } finally {
+      setTestSending(false)
+    }
+  }
 
   const pageCount = useMemo(
     () => Math.max(1, Math.ceil(count / pagination.pageSize)),
@@ -251,12 +295,68 @@ export default function SmsLogPage() {
   return (
     <div className="flex flex-col gap-4">
       {/* Page header */}
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900">SMS Log</h2>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Outbound SMS messages sent via Africa's Talking
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900">SMS Log</h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Outbound SMS messages sent via Africa's Talking
+          </p>
+        </div>
+        <button
+          onClick={() => { setShowTestPanel((p) => !p); setTestResult(null) }}
+          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          </svg>
+          Test SMS Gateway
+        </button>
       </div>
+
+      {/* Test SMS panel */}
+      {showTestPanel && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col gap-3">
+          <div>
+            <p className="text-sm font-medium text-blue-900">Send a test SMS</p>
+            <p className="text-xs text-blue-700 mt-0.5">
+              Sends a test message using your configured Africa's Talking credentials. Check Settings → Integrations to configure the gateway.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <input
+              type="tel"
+              value={testPhone}
+              onChange={(e) => setTestPhone(e.target.value)}
+              placeholder="+256700000000"
+              className="border border-blue-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-56"
+              aria-label="Test recipient phone number"
+            />
+            <button
+              onClick={handleTestSms}
+              disabled={testSending || !testPhone.trim()}
+              className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+            >
+              {testSending && (
+                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+              )}
+              {testSending ? 'Sending…' : 'Send Test'}
+            </button>
+          </div>
+          {testResult && (
+            <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${testResult.success ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+              {testResult.success ? (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
+              )}
+              {testResult.message}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
@@ -313,13 +413,10 @@ export default function SmsLogPage() {
         </select>
 
         {/* Record count */}
-        {!isLoading && count > 0 && (
-          <span className="text-sm text-gray-500 ml-auto">
-            {from}–{to} of {count.toLocaleString()} messages
+        {!isLoading && (
+          <span className="text-sm text-gray-500 hidden sm:inline ml-auto">
+            {count > 0 ? `${from}–${to} of ${count.toLocaleString()} messages` : '0 messages'}
           </span>
-        )}
-        {!isLoading && count === 0 && (
-          <span className="text-sm text-gray-500 ml-auto">0 messages</span>
         )}
       </div>
 
@@ -390,7 +487,7 @@ export default function SmsLogPage() {
         </div>
 
         {/* Pagination controls */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <span>Rows per page:</span>
             <select

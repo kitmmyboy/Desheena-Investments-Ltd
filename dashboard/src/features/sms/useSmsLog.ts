@@ -9,6 +9,7 @@ export interface SmsLogEntry {
   id: string
   recipient_phone: string
   message_content: string
+  message_type: string | null
   event_type: string | null
   related_id: string | null
   delivery_status: string | null
@@ -37,6 +38,7 @@ export interface UseSmsLogResult {
   count: number
   isLoading: boolean
   error: Error | null
+  refetch: () => void
 }
 
 // ---------------------------------------------------------------------------
@@ -50,7 +52,7 @@ export function useSmsLog({
   dateTo,
   recipientPhone,
   deliveryStatus,
-  sortBy = 'created_at',
+  sortBy = 'sent_at',
   sortDesc = true,
 }: SmsLogFilters = {}): UseSmsLogResult {
   const queryKey = [
@@ -58,7 +60,7 @@ export function useSmsLog({
     { page, pageSize, dateFrom, dateTo, recipientPhone, deliveryStatus, sortBy, sortDesc },
   ]
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey,
     queryFn: async () => {
       let query = supabase
@@ -103,5 +105,6 @@ export function useSmsLog({
     count: data?.count ?? 0,
     isLoading,
     error: error as Error | null,
+    refetch,
   }
 }
