@@ -68,11 +68,28 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   }
 }
 
-class _HomeDashboardTab extends ConsumerWidget {
+class _HomeDashboardTab extends ConsumerStatefulWidget {
   const _HomeDashboardTab();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_HomeDashboardTab> createState() => _HomeDashboardTabState();
+}
+
+class _HomeDashboardTabState extends ConsumerState<_HomeDashboardTab> {
+  bool _isRefreshing = false;
+
+  Future<void> _refresh() async {
+    setState(() => _isRefreshing = true);
+    // Invalidate both route and history providers to force a fresh download
+    ref.invalidate(driverRouteProvider);
+    ref.invalidate(collectionsHistoryProvider);
+    // Give Riverpod a moment to start the async computation
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (mounted) setState(() => _isRefreshing = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final routeAsync = ref.watch(driverRouteProvider);
     final historyAsync = ref.watch(collectionsHistoryProvider);
 
@@ -99,14 +116,28 @@ class _HomeDashboardTab extends ConsumerWidget {
             ),
           ],
         ),
-        actions: const [
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.0),
-            child: Icon(Icons.notifications_none, color: Colors.black87),
-          ),
+        actions: [
+          if (_isRefreshing)
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.sync, color: Colors.black87),
+              tooltip: 'Sync route from server',
+              onPressed: _refresh,
+            ),
         ],
       ),
-      body: SingleChildScrollView(
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -174,7 +205,53 @@ class _HomeDashboardTab extends ConsumerWidget {
             routeAsync.when(
               data: (routeData) {
                 if (routeData == null || routeData.clients.isEmpty) {
-                  return const SizedBox.shrink();
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 24),
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(Icons.route_outlined, size: 48, color: Colors.orange.shade400),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'No Route Assigned',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'The admin has not assigned you a route yet.\nTap Sync to check for updates.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey.shade600, height: 1.5),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          icon: _isRefreshing
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.sync, size: 18),
+                          label: Text(_isRefreshing ? 'Syncing...' : 'Sync Now'),
+                          onPressed: _isRefreshing ? null : _refresh,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue.shade700,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
                 }
                 // Mocking "Next" as the first client for the dashboard
                 final nextClient = routeData.clients.first;
@@ -394,7 +471,8 @@ class _HomeDashboardTab extends ConsumerWidget {
             ),
           ],
         ),
-      ),
+        ), // closes SingleChildScrollView
+      ), // closes RefreshIndicator
     );
   }
 }
@@ -447,13 +525,6 @@ class _StatCard extends StatelessWidget {
       ),
     );
   }
-}
-
-class _ProfileTab extends ConsumerStatefulWidget {
-  const _ProfileTab();
-
-  @override
-  ConsumerState<_ProfileTab> createState() => _ProfileTabState();
 }
 
 class _ProfileTab extends ConsumerStatefulWidget {

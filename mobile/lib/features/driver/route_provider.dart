@@ -48,8 +48,14 @@ final connectivitySyncListenerProvider = Provider<void>((ref) {
 
     // Only trigger when transitioning from offline → online.
     if (isOnline && !wasOnline) {
+      // 1. Upload any pending collection records.
       final engine = ref.read(syncEngineProvider);
       engine.syncNow();
+
+      // 2. Re-download the latest route assignment from Supabase so that
+      //    any route changes made in the admin dashboard are immediately
+      //    reflected on the driver's phone (Requirement 3.1).
+      ref.invalidate(driverRouteProvider);
     }
   });
 });
