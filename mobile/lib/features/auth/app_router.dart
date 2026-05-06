@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../customer/customer_home_screen.dart';
 import '../driver/driver_home_screen.dart';
@@ -37,33 +38,43 @@ class AppRouter extends ConsumerWidget {
 final _startupRouteProvider = FutureProvider<Widget>((ref) async {
   final repo = ref.read(authRepositoryProvider);
 
+  // Requirement: Ensure splash screen displays for at least 5 seconds.
+  final splashFuture = Future.delayed(const Duration(seconds: 5));
+
   // 1. Check for a cached session.
   final cached = await repo.getOfflineSession();
 
+  Widget destination;
+
   if (cached == null) {
     // No session at all — show login.
-    return const LoginScreen();
+    destination = const LoginScreen();
+  } else {
+    final now = DateTime.now();
+    final isExpired = cached.expiresAt.isBefore(now);
+
+    if (!isExpired) {
+      // Valid cached session — navigate directly.
+      destination = _screenForRole(cached.role);
+    } else {
+      // JWT is expired — try to refresh silently.
+      final newRole = await repo.refreshToken(cached.refreshToken);
+
+      if (newRole != null) {
+        // Refresh succeeded.
+        destination = _screenForRole(newRole);
+      } else {
+        // Refresh failed (offline or revoked token).
+        // If we have a cached role we allow offline access per Requirement 1.3.
+        destination = _screenForRole(cached.role);
+      }
+    }
   }
 
-  final now = DateTime.now();
-  final isExpired = cached.expiresAt.isBefore(now);
+  // Wait for the remainder of the 5 seconds if resolution was faster.
+  await splashFuture;
 
-  if (!isExpired) {
-    // Valid cached session — navigate directly.
-    return _screenForRole(cached.role);
-  }
-
-  // JWT is expired — try to refresh silently.
-  final newRole = await repo.refreshToken(cached.refreshToken);
-
-  if (newRole != null) {
-    // Refresh succeeded.
-    return _screenForRole(newRole);
-  }
-
-  // Refresh failed (offline or revoked token).
-  // If we have a cached role we allow offline access per Requirement 1.3.
-  return _screenForRole(cached.role);
+  return destination;
 });
 
 Widget _screenForRole(String role) {
@@ -73,27 +84,142 @@ Widget _screenForRole(String role) {
 }
 
 // ---------------------------------------------------------------------------
+// Branding helper — fetches logo URL and app title from system_settings
+// ---------------------------------------------------------------------------
+
+Future<({String logoUrl, String title})> _fetchBranding() async {
+  try {
+    final response = await Supabase.instance.client
+        .from('system_settings')
+        .select('key, value')
+        .inFilter('key', ['app_logo_url', 'app_title']);
+
+    final map = <String, String>{};
+    for (final row in (response as List)) {
+      map[row['key'] as String] = row['value'] as String;
+    }
+    return (
+      logoUrl: map['app_logo_url'] ?? '',
+      title: map['app_title'] ?? 'Desheena Investments Ltd',
+    );
+  } catch (_) {
+    return (logoUrl: '', title: 'Desheena Investments Ltd');
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Splash / loading screen
 // ---------------------------------------------------------------------------
 
-class _SplashScreen extends StatelessWidget {
+class _SplashScreen extends StatefulWidget {
   const _SplashScreen();
 
   @override
+  State<_SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<_SplashScreen> {
+  String _logoUrl = '';
+  String _title = 'Desheena Investments Ltd';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchBranding().then((b) {
+      if (mounted) {
+        setState(() {
+          _logoUrl = b.logoUrl;
+          _title = b.title;
+        });
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
+      backgroundColor: Colors.white,
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.delete_outline_rounded,
-              size: 72,
-              color: Theme.of(context).colorScheme.primary,
+            // Logo — network image if available, fallback to branded circle
+            if (_logoUrl.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Image.network(
+                  _logoUrl,
+                  width: 100,
+                  height: 100,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => _FallbackLogo(primary: primary),
+                ),
+              )
+            else
+              _FallbackLogo(primary: primary),
+
+            const SizedBox(height: 24),
+
+            Text(
+              _title,
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: primary,
+              ),
+              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 16),
-            const CircularProgressIndicator(),
+
+            const SizedBox(height: 8),
+
+            Text(
+              'Waste Management',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade500,
+              ),
+            ),
+
+            const SizedBox(height: 40),
+
+            SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                valueColor: AlwaysStoppedAnimation<Color>(primary),
+              ),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FallbackLogo extends StatelessWidget {
+  const _FallbackLogo({required this.primary});
+  final Color primary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 100,
+      height: 100,
+      decoration: BoxDecoration(
+        color: primary,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: const Center(
+        child: Text(
+          'D',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 48,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );
