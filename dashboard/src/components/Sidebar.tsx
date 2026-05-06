@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../features/auth/AuthContext'
+import { supabase } from '../lib/supabase'
 
 interface NavItem {
   label: string
@@ -39,6 +41,22 @@ const NAV_ITEMS_BY_ROLE: Record<string, NavItem[]> = {
   ],
 }
 
+function useBrandingSettings() {
+  return useQuery({
+    queryKey: ['app_branding_full'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('key, value')
+        .in('key', ['app_title', 'app_logo_url'])
+      const map: Record<string, string> = {}
+      ;(data ?? []).forEach((row: { key: string; value: string }) => { map[row.key] = row.value })
+      return { title: map['app_title'] || 'Desheena', logoUrl: map['app_logo_url'] || '' }
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
 interface SidebarProps {
   isOpen: boolean
   onClose: () => void
@@ -48,6 +66,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { user, role, signOut } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const { data: branding } = useBrandingSettings()
 
   const navItems: NavItem[] = (role ? NAV_ITEMS_BY_ROLE[role] : null) ?? []
 
@@ -92,17 +111,31 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         aria-label="Sidebar navigation"
       >
         {/* Logo / brand */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-700 shrink-0">
-          <div>
-            <span className="text-green-400 font-bold text-lg leading-tight">
-              Desheena
-            </span>
-            <span className="block text-gray-400 text-xs mt-0.5">Waste Management</span>
+        <div className="flex items-center justify-between px-4 py-4 border-b border-gray-700 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            {branding?.logoUrl ? (
+              <img
+                src={branding.logoUrl}
+                alt="Logo"
+                className="h-9 w-9 rounded-lg object-contain bg-white p-0.5 shrink-0"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+              />
+            ) : (
+              <div className="h-9 w-9 rounded-lg bg-green-700 flex items-center justify-center shrink-0">
+                <span className="text-white font-bold text-base">D</span>
+              </div>
+            )}
+            <div className="min-w-0">
+              <span className="text-green-400 font-bold text-base leading-tight block truncate">
+                {branding?.title || 'Desheena'}
+              </span>
+              <span className="block text-gray-400 text-xs mt-0.5">Waste Management</span>
+            </div>
           </div>
           {/* Close button — mobile only */}
           <button
             onClick={onClose}
-            className="lg:hidden p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="lg:hidden p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 shrink-0"
             aria-label="Close navigation"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
