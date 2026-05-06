@@ -201,10 +201,11 @@ class _HomeDashboardTabState extends ConsumerState<_HomeDashboardTab> {
             ),
             const SizedBox(height: 24),
 
-            // Next Trip Card
+            // Route Assignment Card
             routeAsync.when(
               data: (routeData) {
-                if (routeData == null || routeData.clients.isEmpty) {
+                // ── State 1: No route assigned at all ──────────────────────
+                if (routeData == null) {
                   return Container(
                     margin: const EdgeInsets.only(bottom: 24),
                     padding: const EdgeInsets.all(24),
@@ -231,12 +232,8 @@ class _HomeDashboardTabState extends ConsumerState<_HomeDashboardTab> {
                         ElevatedButton.icon(
                           icon: _isRefreshing
                               ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
+                                  width: 16, height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                 )
                               : const Icon(Icons.sync, size: 18),
                           label: Text(_isRefreshing ? 'Syncing...' : 'Sync Now'),
@@ -244,122 +241,177 @@ class _HomeDashboardTabState extends ConsumerState<_HomeDashboardTab> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blue.shade700,
                             foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
                         ),
                       ],
                     ),
                   );
                 }
-                // Mocking "Next" as the first client for the dashboard
-                final nextClient = routeData.clients.first;
+
+                // ── State 2 & 3: Route is assigned (with or without clients) ──
+                final hasClients = routeData.clients.isNotEmpty;
+                final nextClient = hasClients ? routeData.clients.first : null;
+
                 return Container(
+                  margin: const EdgeInsets.only(bottom: 24),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1A233A), // Dark blue header
+                    color: const Color(0xFF1A233A),
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      ),
+                      BoxShadow(color: Colors.black26, blurRadius: 8, offset: const Offset(0, 4)),
                     ],
                   ),
                   child: Column(
                     children: [
+                      // Header row: route name + stop count badge
                       Padding(
                         padding: const EdgeInsets.all(16),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
-                              'Next Collection',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'TODAY\'S ROUTE',
+                                    style: TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    routeData.route.name,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                  if (routeData.route.zone.isNotEmpty)
+                                    Text(
+                                      'Zone: ${routeData.route.zone}',
+                                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                                    ),
+                                ],
                               ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                               decoration: BoxDecoration(
-                                color: Colors.blue.shade600,
-                                borderRadius: BorderRadius.circular(4),
+                                color: hasClients ? Colors.green.shade600 : Colors.orange.shade700,
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Text(
-                                'PENDING',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    '${routeData.clients.length}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const Text(
+                                    'STOPS',
+                                    style: TextStyle(color: Colors.white70, fontSize: 10),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
                       ),
+                      // Body: next stop info or "no stops" message
                       Container(
                         color: const Color(0xFF222B45),
                         padding: const EdgeInsets.all(16),
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.location_on_outlined, color: Colors.white70, size: 20),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'DESTINATION',
-                                        style: TextStyle(
-                                          color: Colors.white54,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                          letterSpacing: 0.5,
+                        child: hasClients
+                            ? Row(
+                                children: [
+                                  const Icon(Icons.location_on_outlined, color: Colors.white70, size: 20),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'NEXT STOP',
+                                          style: TextStyle(
+                                            color: Colors.white54,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 0.5,
+                                          ),
                                         ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        nextClient.clientName,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          nextClient!.clientName,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                         ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        nextClient.locationText.isNotEmpty ? nextClient.locationText : 'No address provided',
-                                        style: const TextStyle(color: Colors.white70, fontSize: 13),
-                                      ),
-                                    ],
+                                        if (nextClient.locationText.isNotEmpty)
+                                          Text(
+                                            nextClient.locationText,
+                                            style: const TextStyle(color: Colors.white70, fontSize: 13),
+                                          ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
+                                ],
+                              )
+                            : Row(
+                                children: [
+                                  Icon(Icons.info_outline, color: Colors.orange.shade300, size: 20),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'NO STOPS ADDED YET',
+                                          style: TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Route assigned. Waiting for admin to add client stops.',
+                                          style: TextStyle(color: Colors.white54, fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                       ),
+                      // Footer: start navigation button
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(12),
                         decoration: const BoxDecoration(
-                          color: Colors.grey, // Maps placeholder color
+                          color: Color(0xFF1A233A),
                           borderRadius: BorderRadius.only(
                             bottomLeft: Radius.circular(12),
                             bottomRight: Radius.circular(12),
                           ),
                         ),
                         child: ElevatedButton.icon(
-                          onPressed: () {},
-                          icon: const Icon(Icons.navigation, color: Colors.blue),
-                          label: const Text('Start Navigation', style: TextStyle(color: Colors.blue)),
+                          onPressed: hasClients ? () {} : null,
+                          icon: const Icon(Icons.navigation),
+                          label: Text(hasClients ? 'Start Navigation' : 'Waiting for stops...'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
+                            backgroundColor: hasClients ? Colors.blue.shade600 : Colors.grey.shade700,
+                            foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
@@ -370,8 +422,28 @@ class _HomeDashboardTabState extends ConsumerState<_HomeDashboardTab> {
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) => const SizedBox.shrink(),
+              error: (e, _) => Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error_outline, color: Colors.red.shade400),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Could not load route: $e',
+                        style: TextStyle(color: Colors.red.shade700),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
+
             const SizedBox(height: 24),
 
             // Stats Row
