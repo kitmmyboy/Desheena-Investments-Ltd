@@ -14,6 +14,7 @@ const NAV_ITEMS_BY_ROLE: Record<string, NavItem[]> = {
     { label: 'Routes', to: '/dashboard/routes' },
     { label: 'Staff', to: '/dashboard/staff' },
     { label: 'Billing', to: '/dashboard/billing' },
+    { label: 'Contracts', to: '/dashboard/contracts' },
     { label: 'Reports', to: '/dashboard/reports' },
     { label: 'Complaints', to: '/dashboard/complaints' },
     { label: 'SMS Log', to: '/dashboard/sms-log' },
@@ -31,6 +32,7 @@ const NAV_ITEMS_BY_ROLE: Record<string, NavItem[]> = {
   Finance: [
     { label: 'Dashboard', to: '/dashboard' },
     { label: 'Billing', to: '/dashboard/billing' },
+    { label: 'Contracts', to: '/dashboard/contracts' },
     { label: 'Reports', to: '/dashboard/reports' },
     { label: 'SMS Log', to: '/dashboard/sms-log' },
   ],

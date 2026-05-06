@@ -28,6 +28,9 @@ const RouteDetailPage = lazy(() =>
 const BillingPage = lazy(() =>
   import('./features/billing').then((m) => ({ default: m.BillingPage }))
 )
+const ContractsPage = lazy(() =>
+  import('./features/contracts').then((m) => ({ default: m.ContractsPage }))
+)
 const SmsLogPage = lazy(() =>
   import('./features/sms').then((m) => ({ default: m.SmsLogPage }))
 )
@@ -246,6 +249,16 @@ export default function App() {
                 <ProtectedRoute allowedRoles={[ADMIN, FINANCE]}>
                   <Suspense fallback={<PageLoader />}>
                     <BillingPage />
+                  </Suspense>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="contracts"
+              element={
+                <ProtectedRoute allowedRoles={[ADMIN, FINANCE]}>
+                  <Suspense fallback={<PageLoader />}>
+                    <ContractsPage />
                   </Suspense>
                 </ProtectedRoute>
               }

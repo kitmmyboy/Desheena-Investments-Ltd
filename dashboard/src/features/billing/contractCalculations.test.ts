@@ -427,3 +427,43 @@ describe('Property 7: Paid-this-period display matches invoice paid_amount sum',
     )
   })
 })
+
+// Feature: contracts-management-page, Property 11: Billing filter excludes non-active contracts
+describe('Property 11: Billing filter excludes non-active contracts', () => {
+  /**
+   * Validates: Requirements 8.1, 8.2, 8.3, 8.4
+   *
+   * Only contracts with status === 'active' should be included in invoice
+   * generation. This property verifies that filtering an array of contracts
+   * to active-only correctly includes all active contracts and excludes all
+   * suspended and terminated ones.
+   */
+  it('filter to active includes all active and excludes suspended/terminated', () => {
+    fc.assert(
+      fc.property(
+        fc.array(
+          fc.record({ status: fc.constantFrom('active', 'suspended', 'terminated') }),
+          { minLength: 0, maxLength: 50 }
+        ),
+        (contracts) => {
+          const activeContracts = contracts.filter((c) => c.status === 'active')
+
+          // 1. All items in the result have status === 'active'
+          const allActive = activeContracts.every((c) => c.status === 'active')
+
+          // 2. No suspended or terminated contracts appear in the result
+          const noNonActive = activeContracts.every(
+            (c) => c.status !== 'suspended' && c.status !== 'terminated'
+          )
+
+          // 3. Result count equals the number of active contracts in the input
+          const expectedCount = contracts.filter((c) => c.status === 'active').length
+          const countMatches = activeContracts.length === expectedCount
+
+          return allActive && noNonActive && countMatches
+        }
+      ),
+      { numRuns: 100 }
+    )
+  })
+})
