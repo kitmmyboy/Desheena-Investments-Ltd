@@ -7,6 +7,7 @@ import ResetPasswordPage from './features/auth/ResetPasswordPage'
 import ProtectedRoute from './features/auth/ProtectedRoute'
 import DashboardLayout from './components/DashboardLayout'
 import { CsvImportPage } from './features/clients'
+import DriverRedirectPage from './features/auth/DriverRedirectPage'
 
 // ---------------------------------------------------------------------------
 // Lazy-loaded heavy components (maps + charts)
@@ -141,6 +142,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/driver-redirect" element={<DriverRedirectPage />} />
 
           {/* Root redirect */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

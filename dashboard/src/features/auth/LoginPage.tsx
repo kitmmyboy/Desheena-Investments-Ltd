@@ -20,6 +20,58 @@ function useBranding() {
   })
 }
 
+// ---------------------------------------------------------------------------
+// Driver blocked screen
+// ---------------------------------------------------------------------------
+
+function DriverBlockedScreen({ logoUrl, title }: { logoUrl: string; title: string }) {
+  const { signOut } = useAuth()
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-md p-8 text-center flex flex-col items-center gap-5">
+        {logoUrl ? (
+          <img
+            src={logoUrl}
+            alt="Logo"
+            className="h-20 w-20 rounded-xl object-contain border border-gray-100 shadow-sm"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+          />
+        ) : (
+          <div className="h-20 w-20 rounded-xl bg-green-700 flex items-center justify-center shadow-sm">
+            <span className="text-white font-bold text-3xl">D</span>
+          </div>
+        )}
+
+        <div>
+          <h1 className="text-xl font-bold text-green-700">{title}</h1>
+        </div>
+
+        {/* Phone icon */}
+        <div className="bg-green-50 rounded-full p-5">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          </svg>
+        </div>
+
+        <div className="space-y-2">
+          <h2 className="text-lg font-semibold text-gray-900">Please use our mobile app</h2>
+          <p className="text-sm text-gray-500 leading-relaxed">
+            The web dashboard is for administrators only.<br />
+            As a driver, please download and use the <span className="font-medium text-green-700">Desheena Driver App</span> on your phone.
+          </p>
+        </div>
+
+        <button
+          onClick={() => signOut()}
+          className="mt-2 text-sm text-gray-500 hover:text-gray-700 underline focus:outline-none"
+        >
+          Sign out
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function LoginPage() {
   const { signIn } = useAuth()
   const navigate = useNavigate()
@@ -29,6 +81,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [driverBlocked, setDriverBlocked] = useState(false)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -36,6 +89,18 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await signIn(email, password)
+
+      // Check the role from the session — don't trust client state yet
+      const { data: { session } } = await supabase.auth.getSession()
+      const role = session?.user?.user_metadata?.role
+
+      if (role === 'Driver') {
+        // Sign them back out immediately — drivers must use the mobile app
+        await supabase.auth.signOut()
+        setDriverBlocked(true)
+        return
+      }
+
       navigate('/dashboard')
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Login failed. Please try again.'
@@ -43,6 +108,16 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Show the driver-blocked screen after credentials are verified
+  if (driverBlocked) {
+    return (
+      <DriverBlockedScreen
+        logoUrl={branding?.logoUrl ?? ''}
+        title={branding?.title ?? 'Desheena Investments Ltd'}
+      />
+    )
   }
 
   return (

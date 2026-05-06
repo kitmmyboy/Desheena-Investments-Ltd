@@ -25,6 +25,11 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
     return <Navigate to="/login" replace />
   }
 
+  // Drivers are never allowed on the web dashboard — they must use the mobile app
+  if (role === 'Driver') {
+    return <Navigate to="/driver-redirect" replace />
+  }
+
   // Role check: if allowedRoles is specified and non-empty, enforce it
   if (allowedRoles && allowedRoles.length > 0) {
     if (!role || !allowedRoles.includes(role)) {
