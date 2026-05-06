@@ -17,7 +17,7 @@ Enhance the billing module with three interconnected capabilities: invoice form 
   - Export the `MonthBreakdown` interface from this file
   - _Requirements: 4.2, 4.3, 4.4, 4.5, 6.2, 6.3, 6.4, 6.5, 10.2, 10.3, 10.4_
 
-  - [ ]* 1.1 Write property test for outstanding balance calculation (Property 1)
+  - [x] 1.1 Write property test for outstanding balance calculation (Property 1)
     - Install `fast-check` as a dev dependency: `npm install --save-dev fast-check`
     - Create `dashboard/src/features/billing/contractCalculations.test.ts`
     - **Property 1: Outstanding balance equals expected minus paid**
@@ -25,25 +25,25 @@ Enhance the billing module with three interconnected capabilities: invoice form 
     - Tag: `// Feature: billing-contract-defaulters, Property 1: outstanding_balance = expected_total - amount_paid`
     - Generate random `monthly_rate` (positive integer 1–1,000,000), random number of months (1–36), random `paid_amount` (0 to expected_total). Assert `computeOutstandingBalance(expected, paid) === expected - paid`.
 
-  - [ ]* 1.2 Write property test for month breakdown consistency (Property 2)
+  - [x] 1.2 Write property test for month breakdown consistency (Property 2)
     - **Property 2: Month breakdown statuses are exhaustive and consistent**
     - **Validates: Requirements 10.2, 10.3, 10.4**
     - Tag: `// Feature: billing-contract-defaulters, Property 2: sum(amount_owed) === outstanding_balance`
     - Generate random contract months and random invoice paid_amounts per month. Assert `sum(breakdown[].amount_owed) === outstanding_balance` and every month has exactly one status.
 
-  - [ ]* 1.3 Write property test for effective status derivation (Property 4)
+  - [x] 1.3 Write property test for effective status derivation (Property 4)
     - **Property 4: Effective status derivation is consistent**
     - **Validates: Requirements 4.2, 4.3, 4.4**
     - Tag: `// Feature: billing-contract-defaulters, Property 4: effective_status derivation rule`
     - Generate random `status` values and random `end_date` (null, past, future). Assert: if `end_date` is non-null and in the past → `'ended'`; otherwise → stored status.
 
-  - [ ]* 1.4 Write property test for contract duration (Property 5)
+  - [x] 1.4 Write property test for contract duration (Property 5)
     - **Property 5: Contract duration is always positive**
     - **Validates: Requirements 4.5**
     - Tag: `// Feature: billing-contract-defaulters, Property 5: duration_months >= 1`
     - Generate random valid `start_date` and `end_date` where `end_date >= start_date`. Assert `computeDurationMonths` always returns ≥ 1.
 
-  - [ ]* 1.5 Write unit tests for computation functions
+  - [x] 1.5 Write unit tests for computation functions
     - Test `computeContractMonths` for Jan–Mar 2025 → `['2025-01', '2025-02', '2025-03']`
     - Test `computeExpectedTotal` for 3 months at UGX 50,000 → 150,000
     - Test `computeOutstandingBalance` for expected 150,000, paid 100,000 → 50,000
@@ -66,7 +66,7 @@ Enhance the billing module with three interconnected capabilities: invoice form 
     - Filter results client-side based on `filter` param: `'active'` → effective_status is `'active'`; `'inactive'` → effective_status is `'suspended'`, `'terminated'`, or `'ended'`
   - _Requirements: 4.2, 4.3, 4.4, 4.5, 5.3, 5.4, 5.5_
 
-  - [ ]* 3.1 Write unit tests for `useContracts` hook
+  - [x] 3.1 Write unit tests for `useContracts` hook
     - Mock Supabase client and test filter logic for `'active'`, `'inactive'`, and `'all'` filters
     - Test that `effective_status` is correctly derived for contracts with past `end_date`
     - _Requirements: 5.3, 5.4, 5.5_
@@ -85,19 +85,19 @@ Enhance the billing module with three interconnected capabilities: invoice form 
     - Sort result by `outstanding_balance` descending
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 7.1, 8.1, 8.4_
 
-  - [ ]* 4.1 Write property test for defaulter category mutual exclusivity (Property 3)
+  - [x] 4.1 Write property test for defaulter category mutual exclusivity (Property 3)
     - **Property 3: Defaulter category assignment is mutually exclusive**
     - **Validates: Requirements 7.1, 8.1**
     - Tag: `// Feature: billing-contract-defaulters, Property 3: defaulter_category is mutually exclusive`
     - Generate random contracts with varying statuses and end_dates. Assert every defaulter has `defaulter_category` of exactly `'active'` or `'ended'`, never both.
 
-  - [ ]* 4.2 Write property test for zero-balance exclusion (Property 6)
+  - [x] 4.2 Write property test for zero-balance exclusion (Property 6)
     - **Property 6: Zero-balance clients are excluded from defaulters**
     - **Validates: Requirements 6.6**
     - Tag: `// Feature: billing-contract-defaulters, Property 6: zero_balance_excluded`
     - Generate contracts and invoices where `amount_paid >= expected_total` for some clients. Assert none of those clients appear in the defaulters output.
 
-  - [ ]* 4.3 Write unit tests for `useContractDefaulters` hook
+  - [x] 4.3 Write unit tests for `useContractDefaulters` hook
     - Mock Supabase and test that clients with `outstanding_balance <= 0` are excluded
     - Test that `defaulter_category` is `'ended'` for terminated contracts
     - Test that `month_breakdown` is in chronological order
@@ -120,7 +120,7 @@ Enhance the billing module with three interconnected capabilities: invoice form 
     - Show loading skeleton and error banner following existing patterns
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7_
 
-  - [ ]* 6.1 Write unit tests for ContractsTab rendering
+  - [x] 6.1 Write unit tests for ContractsTab rendering
     - Test that filter control renders with correct options
     - Test that "Open-ended" is displayed when `end_date` is null
     - Test that contract count is displayed correctly
@@ -141,7 +141,7 @@ Enhance the billing module with three interconnected capabilities: invoice form 
     - Remove the old `useDefaulters` import and `defaulterColumns` definition
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 8.1, 8.2, 8.3, 8.4, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6_
 
-  - [ ]* 7.1 Write unit tests for DefaultersTab filter logic
+  - [x] 7.1 Write unit tests for DefaultersTab filter logic
     - Test that "Active Contract Defaulters" filter shows only `defaulter_category === 'active'` rows
     - Test that "Ended Contract Defaulters" filter shows only `defaulter_category === 'ended'` rows
     - Test that "All Defaulters" shows all rows
@@ -156,7 +156,7 @@ Enhance the billing module with three interconnected capabilities: invoice form 
     - Use colour-coded status badges: green for Paid, yellow for Partial, red for Unpaid
   - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5_
 
-  - [ ]* 8.1 Write unit tests for month breakdown panel
+  - [x] 8.1 Write unit tests for month breakdown panel
     - Test that months are displayed in chronological order
     - Test that "Partial" status shows remaining amount owed
     - Test that "Unpaid" status shows full monthly_rate as amount owed
@@ -172,7 +172,7 @@ Enhance the billing module with three interconnected capabilities: invoice form 
     - Allow the user to override the auto-populated amount by editing the Amount field directly (Req 1.4)
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
 
-  - [ ]* 9.1 Write unit tests for contract rate auto-population
+  - [x] 9.1 Write unit tests for contract rate auto-population
     - Test that Amount field is populated when client with active contract is selected
     - Test that "No active contract found" message is shown when no contract exists
     - Test that Amount field is cleared when client changes
@@ -187,13 +187,13 @@ Enhance the billing module with three interconnected capabilities: invoice form 
     - Display due date preview: "Due: {date}" computed as today + 14 days, always visible
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 3.3_
 
-  - [ ]* 10.1 Write property test for paid-this-period sum (Property 7)
+  - [x] 10.1 Write property test for paid-this-period sum (Property 7)
     - **Property 7: Paid-this-period display matches invoice paid_amount sum**
     - **Validates: Requirements 2.1, 2.2**
     - Tag: `// Feature: billing-contract-defaulters, Property 7: paid_this_period = sum(paid_amount)`
     - Generate random client ID, period, and set of invoices with random `paid_amount` values. Assert displayed "paid this period" equals the sum of all `paid_amount` values. When no invoices exist, assert value is 0.
 
-  - [ ]* 10.2 Write unit tests for outstanding balance display
+  - [x] 10.2 Write unit tests for outstanding balance display
     - Test that Outstanding_Balance updates in real time when Amount field changes
     - Test that warning is shown when Outstanding_Balance ≤ 0
     - Test that "Paid this period: UGX 0" is shown when no prior invoices exist
@@ -205,7 +205,7 @@ Enhance the billing module with three interconnected capabilities: invoice form 
     - Format the invoice period for display using the existing `formatPeriod` pattern (YYYY-MM → "Month YYYY")
   - _Requirements: 3.1, 3.2, 3.4_
 
-  - [ ]* 11.1 Write unit tests for confirmation message
+  - [x] 11.1 Write unit tests for confirmation message
     - Test that confirmation includes client name, human-readable period, and amount
     - Test that `invoice_period` is stored in `YYYY-MM` format
     - _Requirements: 3.2, 3.4_
