@@ -20,6 +20,7 @@ export interface Client {
   service_frequency: string
   monthly_rate: number
   zone: string | null
+  is_active: boolean
   created_at: string
   contracts?: { status: string }[] | null
 }
@@ -36,6 +37,7 @@ export interface ClientsFilters {
   serviceFrequency?: string
   contractStatus?: string
   paymentStatus?: string
+  showInactive?: boolean
 }
 
 export interface UseClientsResult {
@@ -72,8 +74,9 @@ export function useClients({
   zone,
   serviceFrequency,
   contractStatus,
+  showInactive = false,
 }: ClientsFilters = {}): UseClientsResult {
-  const queryKey = ['clients', { page, pageSize, search, zone, serviceFrequency, contractStatus }]
+  const queryKey = ['clients', { page, pageSize, search, zone, serviceFrequency, contractStatus, showInactive }]
 
   const { data, isLoading, error } = useQuery({
     queryKey,
@@ -81,6 +84,11 @@ export function useClients({
       let query = supabase
         .from('clients')
         .select('*, contracts(status)', { count: 'exact' })
+
+      // By default only show active clients; showInactive shows all
+      if (!showInactive) {
+        query = query.eq('is_active', true)
+      }
 
       // Search by name or phone
       if (search && search.trim() !== '') {
@@ -221,6 +229,50 @@ export function useUpdateClient() {
       })
 
       return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// useMarkClientInactive — soft-delete: sets is_active = false
+// ---------------------------------------------------------------------------
+
+export function useMarkClientInactive() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (clientId: string) => {
+      const { error } = await supabase
+        .from('clients')
+        .update({ is_active: false })
+        .eq('id', clientId)
+
+      if (error) throw new Error(error.message)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients'] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// useMarkClientActive — restore: sets is_active = true
+// ---------------------------------------------------------------------------
+
+export function useMarkClientActive() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (clientId: string) => {
+      const { error } = await supabase
+        .from('clients')
+        .update({ is_active: true })
+        .eq('id', clientId)
+
+      if (error) throw new Error(error.message)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients'] })

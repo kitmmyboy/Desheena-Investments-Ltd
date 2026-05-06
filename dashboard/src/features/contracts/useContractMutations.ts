@@ -162,6 +162,7 @@ export function useContractMutations(): {
         .update({
           status: 'terminated',
           end_date: input.effective_date,
+          ...(input.reason ? { notes: input.reason } : {}),
         })
         .eq('id', input.id)
         .select('id, client_id, monthly_rate, start_date, end_date, status, updated_at, clients(name)')

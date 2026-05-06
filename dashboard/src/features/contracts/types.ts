@@ -56,4 +56,5 @@ export interface UpdateStatusInput {
 export interface TerminateInput {
   id: string
   effective_date: string   // YYYY-MM-DD
+  reason?: string          // termination reason saved to notes
 }

@@ -133,10 +133,10 @@ export default function ContractPanel({ clientId }: ContractPanelProps) {
       }
     : null
 
-  async function handleTerminateConfirm(effectiveDate: string) {
+  async function handleTerminateConfirm(effectiveDate: string, reason: string) {
     if (!contract) return
     try {
-      await terminateContract.mutateAsync({ id: contract.id, effective_date: effectiveDate })
+      await terminateContract.mutateAsync({ id: contract.id, effective_date: effectiveDate, reason: reason || undefined })
       setShowTerminateDialog(false)
     } catch {
       // Error surfaced via terminateContract.error — keep dialog open

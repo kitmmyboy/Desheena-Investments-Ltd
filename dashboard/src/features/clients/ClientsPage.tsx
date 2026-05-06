@@ -7,7 +7,7 @@ import {
   createColumnHelper,
   type PaginationState,
 } from '@tanstack/react-table'
-import { useClients, type ClientWithContractStatus, type ClientsFilters } from './useClients'
+import { useClients, useMarkClientInactive, useMarkClientActive, type ClientWithContractStatus, type ClientsFilters } from './useClients'
 import ClientForm from './ClientForm'
 import ClientMapView from './ClientMapView'
 
@@ -60,17 +60,24 @@ function TableSkeleton({ rows = 8, cols = 7 }: { rows?: number; cols?: number })
 
 const columnHelper = createColumnHelper<ClientWithContractStatus>()
 
-function buildColumns(onRowClick: (client: ClientWithContractStatus) => void) {
+function buildColumns(onRowClick: (client: ClientWithContractStatus) => void, onMarkInactive: (id: string) => void, onMarkActive: (id: string) => void) {
   return [
     columnHelper.accessor('name', {
       header: 'Name',
       cell: (info) => (
-        <button
-          onClick={() => onRowClick(info.row.original)}
-          className="font-medium text-blue-700 hover:underline text-left focus:outline-none focus:underline"
-        >
-          {info.getValue()}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onRowClick(info.row.original)}
+            className="font-medium text-blue-700 hover:underline text-left focus:outline-none focus:underline"
+          >
+            {info.getValue()}
+          </button>
+          {!info.row.original.is_active && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-600">
+              Inactive
+            </span>
+          )}
+        </div>
       ),
     }),
     columnHelper.accessor('phone', {
@@ -106,6 +113,35 @@ function buildColumns(onRowClick: (client: ClientWithContractStatus) => void) {
     columnHelper.accessor('contract_status', {
       header: 'Contract status',
       cell: (info) => <ContractStatusBadge status={info.getValue()} />,
+    }),
+    columnHelper.display({
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => {
+        const client = row.original
+        return (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              if (client.is_active) {
+                if (confirm(`Mark "${client.name}" as inactive? They will be hidden from active client lists.`)) {
+                  onMarkInactive(client.id)
+                }
+              } else {
+                onMarkActive(client.id)
+              }
+            }}
+            className={`text-xs font-medium px-2 py-1 rounded transition-colors focus:outline-none ${
+              client.is_active
+                ? 'text-gray-500 hover:text-red-600 hover:bg-red-50'
+                : 'text-green-700 hover:bg-green-50'
+            }`}
+          >
+            {client.is_active ? 'Mark Inactive' : 'Restore'}
+          </button>
+        )
+      },
     }),
   ]
 }
@@ -170,6 +206,7 @@ export default function ClientsPage() {
   const [zoneFilter, setZoneFilter] = useState('all')
   const [serviceFreqFilter, setServiceFreqFilter] = useState('all')
   const [contractStatusFilter, setContractStatusFilter] = useState('all')
+  const [showInactive, setShowInactive] = useState(false)
 
   // Debounce search input
   useEffect(() => {
@@ -195,11 +232,15 @@ export default function ClientsPage() {
     ...filters,
     page: pagination.pageIndex,
     pageSize: pagination.pageSize,
+    showInactive,
   })
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedClient, setSelectedClient] = useState<ClientWithContractStatus | null>(null)
+
+  const markInactive = useMarkClientInactive()
+  const markActive = useMarkClientActive()
 
   function openCreate() {
     setSelectedClient(null)
@@ -221,7 +262,7 @@ export default function ClientsPage() {
     [count, pagination.pageSize]
   )
 
-  const columns = useMemo(() => buildColumns(openEdit), [])
+  const columns = useMemo(() => buildColumns(openEdit, markInactive.mutate, markActive.mutate), [markInactive.mutate, markActive.mutate])
 
   const table = useReactTable({
     data,
@@ -379,6 +420,17 @@ export default function ClientsPage() {
           <option value="suspended">Suspended</option>
           <option value="terminated">Terminated</option>
         </select>
+
+        {/* Show inactive toggle */}
+        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={showInactive}
+            onChange={(e) => { setShowInactive(e.target.checked); setPagination((p) => ({ ...p, pageIndex: 0 })) }}
+            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          Show inactive clients
+        </label>
       </div>
 
       {/* Error state */}
@@ -409,14 +461,14 @@ export default function ClientsPage() {
             <tbody className="divide-y divide-gray-100 bg-white">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-2">
-                    <TableSkeleton rows={8} cols={7} />
+                  <td colSpan={8} className="px-4 py-2">
+                    <TableSkeleton rows={8} cols={8} />
                   </td>
                 </tr>
               ) : table.getRowModel().rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-4 py-12 text-center text-gray-400 text-sm"
                   >
                     No clients found matching the current filters.

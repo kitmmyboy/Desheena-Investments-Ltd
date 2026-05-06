@@ -143,12 +143,13 @@ export default function ContractsPage() {
     setSelectedContract(null)
   }
 
-  async function handleTerminateConfirm(effectiveDate: string) {
+  async function handleTerminateConfirm(effectiveDate: string, reason: string) {
     if (!selectedContract) return
     try {
       await terminateContract.mutateAsync({
         id: selectedContract.id,
         effective_date: effectiveDate,
+        reason: reason || undefined,
       })
       closeModal()
     } catch {
