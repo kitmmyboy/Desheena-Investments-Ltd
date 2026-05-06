@@ -19,6 +19,9 @@ export interface ContractDefaulter {
   client_id: string
   client_name: string
   client_phone: string
+  client_email: string | null
+  client_location: string | null
+  client_zone: string | null
   contract_id: string
   monthly_rate: number
   contract_status: 'active' | 'suspended' | 'terminated'
@@ -48,7 +51,7 @@ export function useContractDefaulters(): {
       const { data: contractRows, error: contractsError } = await supabase
         .from('contracts')
         .select(
-          'id, client_id, monthly_rate, start_date, end_date, status, updated_at, clients(name, phone)'
+          'id, client_id, monthly_rate, start_date, end_date, status, updated_at, clients(name, phone, email, location_text, zone)'
         )
 
       if (contractsError) throw new Error(contractsError.message)
@@ -69,7 +72,7 @@ export function useContractDefaulters(): {
         // Skip contracts with no monthly rate
         if (!monthlyRate) continue
 
-        const clientData = (row.clients as unknown) as { name: string; phone: string } | null
+        const clientData = (row.clients as unknown) as { name: string; phone: string; email?: string | null; location_text?: string | null; zone?: string | null } | null
 
         // Compute contract months
         const contractMonths = computeContractMonths(row.start_date, row.end_date)
@@ -109,6 +112,9 @@ export function useContractDefaulters(): {
           client_id: row.client_id,
           client_name: clientData?.name ?? 'Unknown',
           client_phone: clientData?.phone ?? '—',
+          client_email: clientData?.email ?? null,
+          client_location: clientData?.location_text ?? null,
+          client_zone: clientData?.zone ?? null,
           contract_id: row.id,
           monthly_rate: monthlyRate,
           contract_status: row.status as 'active' | 'suspended' | 'terminated',

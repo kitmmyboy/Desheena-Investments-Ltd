@@ -487,63 +487,99 @@ type DefaulterFilter = 'all' | 'active' | 'ended'
 // Month breakdown panel (rendered inside expanded rows)
 // ---------------------------------------------------------------------------
 
-function MonthBreakdownPanel({ breakdown }: { breakdown: MonthBreakdown[] }) {
-  if (breakdown.length === 0) {
-    return (
-      <div className="px-8 py-4 text-sm text-gray-400">
-        No month breakdown available.
-      </div>
-    )
-  }
-
-  const statusStyles: Record<MonthBreakdown['status'], string> = {
-    paid: 'bg-green-100 text-green-800',
-    partial: 'bg-yellow-100 text-yellow-800',
-    unpaid: 'bg-red-100 text-red-800',
-  }
-
-  const statusLabels: Record<MonthBreakdown['status'], string> = {
-    paid: 'Paid',
-    partial: 'Partial',
-    unpaid: 'Unpaid',
-  }
+function MonthBreakdownPanel({ breakdown, defaulter }: { breakdown: MonthBreakdown[]; defaulter: ContractDefaulter }) {
+  const hasPhone = defaulter.client_phone && defaulter.client_phone !== '—'
 
   return (
-    <div className="px-8 py-4">
-      <table className="min-w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
-        <thead className="bg-gray-100">
-          <tr>
-            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-              Month
-            </th>
-            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-              Amount Owed (UGX)
-            </th>
-            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">
-              Status
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 bg-white">
-          {breakdown.map((entry) => (
-            <tr key={entry.month} className="hover:bg-gray-50">
-              <td className="px-4 py-2 whitespace-nowrap text-gray-700">
-                {formatPeriod(entry.month)}
-              </td>
-              <td className="px-4 py-2 whitespace-nowrap tabular-nums text-gray-700">
-                {formatCurrency(entry.amount_owed)}
-              </td>
-              <td className="px-4 py-2 whitespace-nowrap">
-                <span
-                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusStyles[entry.status]}`}
-                >
-                  {statusLabels[entry.status]}
-                </span>
-              </td>
+    <div className="px-6 py-4 bg-gray-50 border-t border-gray-100">
+      {/* Contact card */}
+      <div className="mb-4 bg-white border border-blue-100 rounded-xl p-4 flex flex-col sm:flex-row sm:items-start gap-4">
+        {/* Avatar */}
+        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-base shrink-0">
+          {defaulter.client_name.charAt(0).toUpperCase()}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-900">{defaulter.client_name}</p>
+          <div className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1">
+            {hasPhone && (
+              <a
+                href={`tel:${defaulter.client_phone}`}
+                className="flex items-center gap-1.5 text-sm text-blue-700 hover:underline font-medium"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
+                </svg>
+                {defaulter.client_phone}
+              </a>
+            )}
+            {defaulter.client_email && (
+              <a
+                href={`mailto:${defaulter.client_email}`}
+                className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-blue-700 hover:underline"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                  <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                </svg>
+                {defaulter.client_email}
+              </a>
+            )}
+            {defaulter.client_location && (
+              <span className="flex items-center gap-1.5 text-sm text-gray-500">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                </svg>
+                {defaulter.client_location}
+                {defaulter.client_zone && ` · ${defaulter.client_zone}`}
+              </span>
+            )}
+          </div>
+        </div>
+        {/* Quick summary */}
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span className="text-xs text-gray-500">Outstanding</span>
+          <span className="text-base font-bold text-red-600 tabular-nums">{formatCurrency(defaulter.outstanding_balance)}</span>
+          <span className="text-xs text-gray-400">{defaulter.months_unpaid} month{defaulter.months_unpaid !== 1 ? 's' : ''} unpaid</span>
+        </div>
+      </div>
+
+      {/* Month breakdown table */}
+      {breakdown.length === 0 ? (
+        <div className="text-sm text-gray-400 py-2">No month breakdown available.</div>
+      ) : (
+        <table className="min-w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Month</th>
+              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Amount Owed (UGX)</th>
+              <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap">Status</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-gray-100 bg-white">
+            {breakdown.map((entry) => {
+              const statusStyles: Record<MonthBreakdown['status'], string> = {
+                paid: 'bg-green-100 text-green-800',
+                partial: 'bg-yellow-100 text-yellow-800',
+                unpaid: 'bg-red-100 text-red-800',
+              }
+              const statusLabels: Record<MonthBreakdown['status'], string> = {
+                paid: 'Paid', partial: 'Partial', unpaid: 'Unpaid',
+              }
+              return (
+                <tr key={entry.month} className="hover:bg-gray-50">
+                  <td className="px-4 py-2 whitespace-nowrap text-gray-700">{formatPeriod(entry.month)}</td>
+                  <td className="px-4 py-2 whitespace-nowrap tabular-nums text-gray-700">{formatCurrency(entry.amount_owed)}</td>
+                  <td className="px-4 py-2 whitespace-nowrap">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusStyles[entry.status]}`}>
+                      {statusLabels[entry.status]}
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
     </div>
   )
 }
@@ -755,6 +791,7 @@ function DefaultersTab() {
                         <td colSpan={colCount} className="px-0 py-0 bg-gray-50">
                           <MonthBreakdownPanel
                             breakdown={row.original.month_breakdown}
+                            defaulter={row.original}
                           />
                         </td>
                       </tr>
