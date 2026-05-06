@@ -42,18 +42,21 @@ async function fetchKpis(): Promise<KpiData> {
       .select('weight_kg')
       .gte('collected_at', today),
 
-    // 3. Total revenue today — sum of payments.amount where payment_date is today
+    // 3. Revenue today — sum of paid_amount on invoices updated today
+    //    (payments table may be empty; invoices.paid_amount is the source of truth)
     supabase
-      .from('payments')
-      .select('amount')
-      .gte('created_at', today)
-      .eq('status', 'completed'),
+      .from('invoices')
+      .select('paid_amount')
+      .gte('updated_at', today)
+      .gt('paid_amount', 0),
 
-    // 4. Active clients — contracts with status = 'active'
+    // 4. Active clients — contracts with status = 'active' AND
+    //    (end_date is null OR end_date >= today)
     supabase
       .from('contracts')
       .select('client_id', { count: 'exact', head: true })
-      .eq('status', 'active'),
+      .eq('status', 'active')
+      .or(`end_date.is.null,end_date.gte.${today}`),
 
     // 5. Pending sync records
     supabase
@@ -75,10 +78,10 @@ async function fetchKpis(): Promise<KpiData> {
       0,
     ) ?? 0
 
-  // Sum payment amounts in JS
+  // Sum paid_amount from invoices updated today
   const revenueToday =
     revenueTodayRes.data?.reduce(
-      (sum: number, row: { amount: number | null }) => sum + (row.amount ?? 0),
+      (sum: number, row: { paid_amount: number | null }) => sum + (row.paid_amount ?? 0),
       0,
     ) ?? 0
 

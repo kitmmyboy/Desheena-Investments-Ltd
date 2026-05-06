@@ -93,13 +93,6 @@ export function useFinancialReport(filters: FinancialFilters = {}) {
         ? (invoices ?? []).filter((inv) => { const c = inv.clients as { zone?: string } | null; return c?.zone === filters.zone })
         : (invoices ?? [])
 
-      const now = new Date()
-      const months: string[] = []
-      for (let i = 11; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-        months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`)
-      }
-
       const invoicedByMonth = new Map<string, number>()
       const collectedByMonth = new Map<string, number>()
 
@@ -108,6 +101,30 @@ export function useFinancialReport(filters: FinancialFilters = {}) {
         if (!key) continue
         invoicedByMonth.set(key, (invoicedByMonth.get(key) ?? 0) + Number(inv.amount ?? 0))
         collectedByMonth.set(key, (collectedByMonth.get(key) ?? 0) + Number(inv.paid_amount ?? 0))
+      }
+
+      // Anchor the 12-month window to the latest invoice period in the data
+      // (invoices may be pre-generated into the future, so don't use today's date)
+      const allPeriods = Array.from(invoicedByMonth.keys()).sort()
+      const latestPeriod = allPeriods[allPeriods.length - 1]
+
+      let anchorYear: number
+      let anchorMonth: number // 0-indexed
+
+      if (latestPeriod) {
+        const [y, m] = latestPeriod.split("-")
+        anchorYear = Number(y)
+        anchorMonth = Number(m) - 1
+      } else {
+        const now = new Date()
+        anchorYear = now.getFullYear()
+        anchorMonth = now.getMonth()
+      }
+
+      const months: string[] = []
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(anchorYear, anchorMonth - i, 1)
+        months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`)
       }
 
       const monthlyRows: MonthlyFinancialRow[] = months.map((month) => {
