@@ -62,6 +62,18 @@ function getDueDate(periodEnd: string): string {
   return endDate.toISOString().split('T')[0];
 }
 
+function getFirstPaidPeriod(clientData: ParsedClient): { year: number; month: number } | null {
+  const paidHistory = clientData.payment_history
+    .filter((payment) => payment.status !== 'unpaid' && payment.status !== 'na' && payment.amount_paid > 0)
+    .sort((a, b) => a.year - b.year || a.month - b.month);
+
+  if (paidHistory.length === 0) {
+    return null;
+  }
+
+  return { year: paidHistory[0].year, month: paidHistory[0].month };
+}
+
 // ---------------------------------------------------------------------------
 // Main handler
 // ---------------------------------------------------------------------------
@@ -156,16 +168,19 @@ Deno.serve(async (req: Request) => {
         continue;
       }
 
-      // Insert contract
-      const contractStartDate = new Date(clientData.contract_start_date);
-      const contractYear = contractStartDate.getFullYear();
-      const contractMonth = contractStartDate.getMonth() + 1;
+      // Determine contract start date from first actual payment if available
+      const firstPaidPeriod = getFirstPaidPeriod(clientData);
+      const contractStartDate = firstPaidPeriod
+        ? getMonthStartDate(firstPaidPeriod.year, firstPaidPeriod.month)
+        : clientData.contract_start_date;
+      const contractYear = new Date(contractStartDate).getFullYear();
+      const contractMonth = new Date(contractStartDate).getMonth() + 1;
 
       const { data: contract, error: contractError } = await supabase
         .from('contracts')
         .insert({
           client_id: client.id,
-          start_date: clientData.contract_start_date,
+          start_date: contractStartDate,
           billing_cycle: 'monthly',
           billing_model: 'flat',
           monthly_rate: clientData.monthly_rate,
@@ -188,7 +203,7 @@ Deno.serve(async (req: Request) => {
         }
 
         // Skip if not paid
-        if (payment.status === 'unpaid' || payment.status === 'na') {
+        if (payment.status === 'unpaid' || payment.status === 'na' || payment.amount_paid <= 0) {
           continue;
         }
 

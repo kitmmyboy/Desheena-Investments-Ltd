@@ -67,6 +67,8 @@ Deno.serve(async (req) => {
 
     return new Response("Method not allowed", { status: 405, headers });
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 400, headers });
+    const message = err?.message ?? String(err);
+    const stack = err?.stack ? String(err.stack) : null;
+    return new Response(JSON.stringify({ error: message, stack }), { status: 400, headers });
   }
 });
