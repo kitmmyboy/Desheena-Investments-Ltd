@@ -403,12 +403,17 @@ function parsePaymentColumns(
 
     const rawStr = String(raw).trim().toUpperCase()
 
-    if (rawStr === "PAID" || rawStr === "P") {
+    if (rawStr === "PAID" || rawStr === "P" || rawStr === "*") {
       payments.push({ year: sheetYear, month: monthNum, amount_paid: monthlyRate, status: "paid" })
       continue
     }
 
-    if (ZERO_TOKENS.has(rawStr) || rawStr === "*") {
+    if (rawStr === "NIL" || rawStr === "NILL" || rawStr === "0") {
+      payments.push({ year: sheetYear, month: monthNum, amount_paid: 0, status: "unpaid" })
+      continue
+    }
+
+    if (ZERO_TOKENS.has(rawStr)) {
       payments.push({ year: sheetYear, month: monthNum, amount_paid: 0, status: "na" })
       continue
     }
@@ -535,10 +540,10 @@ function parseTemplateRow(obj: Record<string, string>, defaultStartDate: string)
     const monthNum = MONTH_MAP[m[2].toLowerCase()]
     if (!monthNum) continue
     const rawStr = String(val ?? "").trim().toUpperCase()
-    if (!rawStr || rawStr === "NA" || rawStr === "N/A" || rawStr === "*") {
+    if (!rawStr || rawStr === "NA" || rawStr === "N/A") {
       // Blank = not active that month (na), not an unpaid debt
       payment_history.push({ year, month: monthNum, amount_paid: 0, status: "na" })
-    } else if (rawStr === "PAID" || rawStr === "P") {
+    } else if (rawStr === "PAID" || rawStr === "P" || rawStr === "*") {
       payment_history.push({ year, month: monthNum, amount_paid: monthly_rate, status: "paid" })
     } else if (rawStr === "NIL" || rawStr === "NILL" || rawStr === "0") {
       // NIL explicitly means they were active but didn't pay
@@ -575,11 +580,25 @@ function parseCsvLine(line: string): string[] {
   const result: string[] = []
   let current = ""
   let inQuotes = false
-  for (const ch of line) {
-    if (ch === '"') { inQuotes = !inQuotes }
-    else if (ch === "," && !inQuotes) { result.push(current); current = "" }
-    else { current += ch }
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"'
+        i++
+      } else {
+        inQuotes = !inQuotes
+      }
+    } else if (ch === "," && !inQuotes) {
+      result.push(current)
+      current = ""
+    } else {
+      current += ch
+    }
   }
+
   result.push(current)
   return result
 }
@@ -778,7 +797,7 @@ export default function CsvImportPage() {
         const text = e.target?.result as string
         const lines = text.split(/\r?\n/).filter((l) => l.trim())
         if (lines.length < 2) { setParseErrors(["CSV is empty"]); return }
-        const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/"/g, ""))
+        const headers = parseCsvLine(lines[0]).map((h) => h.trim().toLowerCase().replace(/^"|"$/g, ""))
         const parsed: ParsedClient[] = []
         const errs: string[] = []
         for (let i = 1; i < lines.length; i++) {

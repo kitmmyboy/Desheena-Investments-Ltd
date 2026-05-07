@@ -15,15 +15,21 @@ interface FormValues {
   phone: string
   email: string
   location_text: string
+  gps_lat: string
+  gps_lng: string
   service_frequency: string
   monthly_rate: string
   zone: string
+  division_office: string
+  notes: string
 }
 
 interface FormErrors {
   name?: string
   phone?: string
   location_text?: string
+  gps_lat?: string
+  gps_lng?: string
   service_frequency?: string
   monthly_rate?: string
 }
@@ -45,6 +51,20 @@ function validate(values: FormValues): FormErrors {
   if (!values.name.trim()) errors.name = 'Name is required'
   if (!values.phone.trim()) errors.phone = 'Phone is required'
   if (!values.location_text.trim()) errors.location_text = 'Location is required'
+
+  // GPS coordinates are optional but must be valid if provided
+  if (values.gps_lat.trim()) {
+    const lat = Number(values.gps_lat)
+    if (isNaN(lat) || lat < -90 || lat > 90) {
+      errors.gps_lat = 'Must be a valid latitude (-90 to 90)'
+    }
+  }
+  if (values.gps_lng.trim()) {
+    const lng = Number(values.gps_lng)
+    if (isNaN(lng) || lng < -180 || lng > 180) {
+      errors.gps_lng = 'Must be a valid longitude (-180 to 180)'
+    }
+  }
 
   if (!values.service_frequency.trim()) {
     errors.service_frequency = 'Service frequency is required'
@@ -108,9 +128,13 @@ export default function ClientForm({ client, onClose, onSuccess }: ClientFormPro
     phone: client?.phone ?? '',
     email: client?.email ?? '',
     location_text: client?.location_text ?? '',
+    gps_lat: client?.gps_lat != null ? String(client.gps_lat) : '',
+    gps_lng: client?.gps_lng != null ? String(client.gps_lng) : '',
     service_frequency: client?.service_frequency ?? '',
     monthly_rate: client?.monthly_rate != null ? String(client.monthly_rate) : '',
     zone: client?.zone ?? '',
+    division_office: (client as any)?.division_office ?? '',
+    notes: (client as any)?.notes ?? '',
   })
 
   const [errors, setErrors] = useState<FormErrors>({})
@@ -123,9 +147,13 @@ export default function ClientForm({ client, onClose, onSuccess }: ClientFormPro
       phone: client?.phone ?? '',
       email: client?.email ?? '',
       location_text: client?.location_text ?? '',
+      gps_lat: client?.gps_lat != null ? String(client.gps_lat) : '',
+      gps_lng: client?.gps_lng != null ? String(client.gps_lng) : '',
       service_frequency: client?.service_frequency ?? '',
       monthly_rate: client?.monthly_rate != null ? String(client.monthly_rate) : '',
       zone: client?.zone ?? '',
+      division_office: (client as any)?.division_office ?? '',
+      notes: (client as any)?.notes ?? '',
     })
     setErrors({})
     setTouched({})
@@ -165,11 +193,13 @@ export default function ClientForm({ client, onClose, onSuccess }: ClientFormPro
       phone: values.phone.trim(),
       email: values.email.trim() || undefined,
       location_text: values.location_text.trim(),
-      gps_lat: 0,
-      gps_lng: 0,
+      gps_lat: values.gps_lat.trim() ? Number(values.gps_lat) : 0,
+      gps_lng: values.gps_lng.trim() ? Number(values.gps_lng) : 0,
       service_frequency: values.service_frequency.trim(),
       monthly_rate: Number(values.monthly_rate),
       zone: values.zone.trim() || undefined,
+      division_office: values.division_office.trim() || undefined,
+      notes: values.notes.trim() || undefined,
     }
 
     try {
@@ -254,18 +284,58 @@ export default function ClientForm({ client, onClose, onSuccess }: ClientFormPro
         />
       </Field>
 
+      {/* GPS Coordinates */}
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="GPS Latitude" error={errors.gps_lat}>
+          <input
+            type="number"
+            step="any"
+            value={values.gps_lat}
+            onChange={(e) => handleChange('gps_lat', e.target.value)}
+            onBlur={() => handleBlur('gps_lat')}
+            placeholder="e.g. 0.3476"
+            className={`border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              errors.gps_lat ? 'border-red-400' : 'border-gray-300'
+            }`}
+          />
+        </Field>
+        <Field label="GPS Longitude" error={errors.gps_lng}>
+          <input
+            type="number"
+            step="any"
+            value={values.gps_lng}
+            onChange={(e) => handleChange('gps_lng', e.target.value)}
+            onBlur={() => handleBlur('gps_lng')}
+            placeholder="e.g. 32.5825"
+            className={`border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              errors.gps_lng ? 'border-red-400' : 'border-gray-300'
+            }`}
+          />
+        </Field>
+      </div>
+      {(!values.gps_lat.trim() || !values.gps_lng.trim()) && (
+        <p className="text-xs text-orange-600">
+          ⚠️ GPS coordinates are optional but recommended for map features
+        </p>
+      )}
+
       {/* Service frequency */}
       <Field label="Service frequency" required error={errors.service_frequency}>
-        <input
-          type="text"
+        <select
           value={values.service_frequency}
           onChange={(e) => handleChange('service_frequency', e.target.value)}
           onBlur={() => handleBlur('service_frequency')}
-          placeholder="e.g. twice per week, daily"
-          className={`border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+          className={`border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
             errors.service_frequency ? 'border-red-400' : 'border-gray-300'
           }`}
-        />
+        >
+          <option value="">Select frequency</option>
+          <option value="monthly">Monthly</option>
+          <option value="weekly">Weekly</option>
+          <option value="twice per week">Twice per week</option>
+          <option value="three times per week">Three times per week</option>
+          <option value="daily">Daily</option>
+        </select>
       </Field>
 
       {/* Monthly rate */}
@@ -291,6 +361,28 @@ export default function ClientForm({ client, onClose, onSuccess }: ClientFormPro
           value={values.zone}
           onChange={(e) => handleChange('zone', e.target.value)}
           placeholder="e.g. Naalya, Kito, Nsasa (optional)"
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </Field>
+
+      {/* Division Office (optional) */}
+      <Field label="Division Office">
+        <input
+          type="text"
+          value={values.division_office}
+          onChange={(e) => handleChange('division_office', e.target.value)}
+          placeholder="e.g. DIVISION OFFICE, KITO, NSASA (optional)"
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </Field>
+
+      {/* Notes (optional) */}
+      <Field label="Notes">
+        <textarea
+          value={values.notes}
+          onChange={(e) => handleChange('notes', e.target.value)}
+          placeholder="Additional notes about this client (optional)"
+          rows={3}
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </Field>

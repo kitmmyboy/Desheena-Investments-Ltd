@@ -95,6 +95,8 @@ export function useContractMutations(): {
           start_date: input.start_date,
           end_date: input.end_date ?? null,
           monthly_rate: input.monthly_rate,
+          registration_fee: input.registration_fee ?? 0,
+          notes: input.notes ?? null,
           status: 'active',
         })
         .select('id, client_id, monthly_rate, start_date, end_date, status, updated_at, clients(name)')
@@ -119,6 +121,8 @@ export function useContractMutations(): {
           start_date: input.start_date,
           end_date: input.end_date ?? null,
           monthly_rate: input.monthly_rate,
+          registration_fee: input.registration_fee ?? 0,
+          notes: input.notes ?? null,
         })
         .eq('id', input.id)
         .select('id, client_id, monthly_rate, start_date, end_date, status, updated_at, clients(name)')

@@ -39,6 +39,8 @@ export interface CreateContractInput {
   start_date: string
   end_date?: string | null
   monthly_rate: number
+  registration_fee?: number
+  notes?: string
 }
 
 export interface UpdateContractInput {
@@ -46,6 +48,8 @@ export interface UpdateContractInput {
   start_date: string
   end_date?: string | null
   monthly_rate: number
+  registration_fee?: number
+  notes?: string
 }
 
 export interface UpdateStatusInput {

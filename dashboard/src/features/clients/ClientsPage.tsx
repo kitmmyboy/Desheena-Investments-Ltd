@@ -102,6 +102,14 @@ function buildColumns(onRowClick: (client: ClientWithContractStatus) => void, on
       header: 'Service frequency',
       cell: (info) => <span className="text-gray-700 text-sm">{info.getValue()}</span>,
     }),
+    columnHelper.accessor('zone', {
+      header: 'Zone',
+      cell: (info) => <span className="text-gray-700 text-sm">{info.getValue() ?? '—'}</span>,
+    }),
+    columnHelper.accessor('division_office', {
+      header: 'Division Office',
+      cell: (info) => <span className="text-gray-700 text-sm">{(info.getValue() as any) ?? '—'}</span>,
+    }),
     columnHelper.accessor('monthly_rate', {
       header: 'Monthly rate',
       cell: (info) => (
@@ -318,9 +326,11 @@ export default function ClientsPage() {
             </button>
           </div>
 
-          {viewMode === 'table' && !isLoading && count > 0 && (
+          {viewMode === 'table' && (
             <span className="text-sm text-gray-500 hidden sm:inline">
-              {from}–{to} of {count.toLocaleString()}
+              {isLoading
+                ? 'Loading clients...'
+                : `${count.toLocaleString()} total client${count === 1 ? '' : 's'}${count > 0 ? ` — ${from}–${to} shown` : ''}`}
             </span>
           )}
           <button
@@ -402,10 +412,11 @@ export default function ClientsPage() {
           aria-label="Filter by service frequency"
         >
           <option value="all">All frequencies</option>
-          <option value="daily">Daily</option>
+          <option value="monthly">Monthly</option>
+          <option value="weekly">Weekly</option>
           <option value="twice per week">Twice per week</option>
           <option value="three times per week">Three times per week</option>
-          <option value="weekly">Weekly</option>
+          <option value="daily">Daily</option>
         </select>
 
         {/* Contract status filter */}

@@ -138,44 +138,82 @@ Deno.serve(async (req: Request) => {
 
   for (const clientData of clients) {
     try {
-      // Check for duplicates (same name + phone)
-      let duplicateQuery = supabase
+      // Identify existing client by name plus phone, location or division office
+      const { data: existingClients, error: existingError } = await supabase
         .from('clients')
-        .select('id')
-        .eq('name', clientData.name);
+        .select('id, phone, email, location_text, division_office')
+        .ilike('name', clientData.name)
 
-      if (clientData.phone) {
-        duplicateQuery = duplicateQuery.eq('phone', clientData.phone);
-      }
-
-      const { data: existing } = await duplicateQuery.limit(1);
-
-      if (existing && existing.length > 0) {
-        duplicates++;
+      if (existingError) {
+        errors++;
+        error_messages.push(`Client ${clientData.name}: ${existingError.message}`);
         continue;
       }
 
-      // Insert client
-      const { data: client, error: clientError } = await supabase
-        .from('clients')
-        .insert({
-          name: clientData.name,
-          phone: clientData.phone,
-          email: clientData.email,
-          location_text: clientData.location_text,
-          gps_lat: clientData.gps_lat || null,
-          gps_lng: clientData.gps_lng || null,
-          zone: clientData.zone,
-          service_frequency: clientData.service_frequency === 'monthly' ? 4 : 1, // Default to weekly if not monthly
-          monthly_rate: clientData.monthly_rate,
-          is_active: true,
-        })
-        .select('id')
-        .single();
+      const existing = (existingClients ?? []).find((c) => {
+        const phoneMatch = clientData.phone && c.phone === clientData.phone;
+        const locationMatch = clientData.location_text && c.location_text?.trim().toLowerCase() === clientData.location_text.trim().toLowerCase();
+        const officeMatch = clientData.division_office && c.division_office?.trim().toLowerCase() === clientData.division_office.trim().toLowerCase();
+        return phoneMatch || locationMatch || officeMatch;
+      });
 
-      if (clientError) {
+      let clientId: string | null = null
+      if (existing) {
+        const { data: updatedClient, error: updateError } = await supabase
+          .from('clients')
+          .update({
+            name: clientData.name,
+            phone: clientData.phone,
+            email: clientData.email,
+            location_text: clientData.location_text,
+            gps_lat: clientData.gps_lat || null,
+            gps_lng: clientData.gps_lng || null,
+            zone: clientData.zone,
+            service_frequency: clientData.service_frequency === 'monthly' ? 4 : 1,
+            monthly_rate: clientData.monthly_rate,
+            is_active: true,
+          })
+          .eq('id', existing.id)
+          .select('id')
+          .single();
+
+        if (updateError || !updatedClient) {
+          errors++;
+          error_messages.push(`Client ${clientData.name}: ${updateError?.message ?? 'Failed to update existing record'}`);
+          continue;
+        }
+
+        clientId = updatedClient.id;
+      } else {
+        const { data: client, error: clientError } = await supabase
+          .from('clients')
+          .insert({
+            name: clientData.name,
+            phone: clientData.phone,
+            email: clientData.email,
+            location_text: clientData.location_text,
+            gps_lat: clientData.gps_lat || null,
+            gps_lng: clientData.gps_lng || null,
+            zone: clientData.zone,
+            service_frequency: clientData.service_frequency === 'monthly' ? 4 : 1,
+            monthly_rate: clientData.monthly_rate,
+            is_active: true,
+          })
+          .select('id')
+          .single();
+
+        if (clientError || !client) {
+          errors++;
+          error_messages.push(`Client ${clientData.name}: ${clientError?.message ?? 'Failed to insert client'}`);
+          continue;
+        }
+
+        clientId = client.id;
+      }
+
+      if (!clientId) {
         errors++;
-        error_messages.push(`Client ${clientData.name}: ${clientError.message}`);
+        error_messages.push(`Client ${clientData.name}: Could not determine client id`);
         continue;
       }
 
@@ -190,7 +228,7 @@ Deno.serve(async (req: Request) => {
       const { data: contract, error: contractError } = await supabase
         .from('contracts')
         .insert({
-          client_id: client.id,
+          client_id: clientId,
           start_date: contractStartDate,
           billing_cycle: 'monthly',
           billing_model: 'flat',
@@ -213,61 +251,64 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
-        // Skip if not paid
-        if (payment.status === 'unpaid' || payment.status === 'na' || payment.amount_paid <= 0) {
+        // Skip months where the client was not active
+        if (payment.status === 'na') {
           continue;
         }
 
         const periodStart = getMonthStartDate(payment.year, payment.month);
         const periodEnd = getMonthEndDate(payment.year, payment.month);
         const dueDate = getDueDate(periodEnd);
+        const invoiceAmount = clientData.monthly_rate;
+        const invoiceStatus = payment.amount_paid >= invoiceAmount ? 'paid' : 'unpaid';
 
-        // Insert invoice
+        // Insert invoice for the month
         const { data: invoice, error: invoiceError } = await supabase
           .from('invoices')
           .insert({
-            client_id: client.id,
+            client_id: clientId,
             contract_id: contract.id,
             period_start: periodStart,
             period_end: periodEnd,
-            amount: clientData.monthly_rate,
+            amount: invoiceAmount,
             vat_amount: 0,
-            total_amount: clientData.monthly_rate,
+            total_amount: invoiceAmount,
             due_date: dueDate,
-            status: 'paid', // Since there's a payment
+            status: invoiceStatus,
             generated_at: new Date().toISOString(),
           })
           .select('id')
           .single();
 
-        if (invoiceError) {
+        if (invoiceError || !invoice) {
           errors++;
-          error_messages.push(`Invoice for ${clientData.name} ${payment.year}-${payment.month}: ${invoiceError.message}`);
+          error_messages.push(`Invoice for ${clientData.name} ${payment.year}-${payment.month}: ${invoiceError?.message ?? 'Failed to insert invoice'}`);
           continue;
         }
 
         invoices_created++;
 
-        // Insert payment
-        const { error: paymentError } = await supabase
-          .from('payments')
-          .insert({
-            invoice_id: invoice.id,
-            client_id: client.id,
-            amount: payment.amount_paid,
-            currency: 'UGX',
-            payment_method: 'manual', // Historical import
-            status: 'completed',
-            paid_at: new Date().toISOString(),
-          });
+        if (payment.amount_paid > 0) {
+          const { error: paymentError } = await supabase
+            .from('payments')
+            .insert({
+              invoice_id: invoice.id,
+              client_id: clientId,
+              amount: payment.amount_paid,
+              currency: 'UGX',
+              payment_method: 'manual', // Historical import
+              status: 'completed',
+              paid_at: new Date().toISOString(),
+            });
 
-        if (paymentError) {
-          errors++;
-          error_messages.push(`Payment for ${clientData.name} ${payment.year}-${payment.month}: ${paymentError.message}`);
-          continue;
+          if (paymentError) {
+            errors++;
+            error_messages.push(`Payment for ${clientData.name} ${payment.year}-${payment.month}: ${paymentError.message}`);
+            continue;
+          }
+
+          payments_created++;
         }
-
-        payments_created++;
       }
 
       imported++;

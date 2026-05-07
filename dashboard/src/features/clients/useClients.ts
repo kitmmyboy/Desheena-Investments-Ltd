@@ -20,6 +20,8 @@ export interface Client {
   service_frequency: string
   monthly_rate: number
   zone: string | null
+  division_office: string | null
+  notes: string | null
   is_active: boolean
   created_at: string
   contracts?: { status: string }[] | null
@@ -57,6 +59,8 @@ export interface CreateClientInput {
   service_frequency: string
   monthly_rate: number
   zone?: string
+  division_office?: string
+  notes?: string
 }
 
 export interface UpdateClientInput extends CreateClientInput {
@@ -140,10 +144,11 @@ export function useClients({
         const { data: allContractRows } = await supabase
           .from('contracts')
           .select('client_id')
-        const clientsWithContracts = new Set((allContractRows ?? []).map((r: { client_id: string }) => r.client_id))
-        // We can't do NOT IN easily in supabase-js without a workaround;
-        // fetch all matching clients then exclude those with contracts
-        query = query.not('id', 'in', `(${Array.from(clientsWithContracts).join(',') || 'null'})`)
+        const clientsWithContracts = Array.from(new Set((allContractRows ?? []).map((r: { client_id: string }) => r.client_id)))
+        if (clientsWithContracts.length > 0) {
+          const quotedIds = clientsWithContracts.map((id) => `"${id}"`).join(',')
+          query = query.not('id', 'in', `(${quotedIds})`)
+        }
       }
 
       // Search by name or phone
@@ -154,7 +159,7 @@ export function useClients({
 
       // Zone filter
       if (zone && zone !== 'all') {
-        query = query.eq('zone', zone)
+        query = query.ilike('zone', zone)
       }
 
       // Service frequency filter — exact match (case-insensitive)
@@ -245,6 +250,8 @@ export function useCreateClient() {
           service_frequency: input.service_frequency,
           monthly_rate: input.monthly_rate,
           zone: input.zone ?? null,
+          division_office: input.division_office ?? null,
+          notes: input.notes ?? null,
           created_at: new Date().toISOString(),
         })
         .select()
@@ -284,6 +291,8 @@ export function useUpdateClient() {
         service_frequency: input.service_frequency,
         monthly_rate: input.monthly_rate,
         zone: input.zone ?? null,
+        division_office: input.division_office ?? null,
+        notes: input.notes ?? null,
       }
 
       const { data, error } = await supabase

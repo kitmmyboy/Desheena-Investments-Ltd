@@ -18,6 +18,8 @@ interface FormValues {
   start_date: string
   end_date: string
   monthly_rate: string
+  registration_fee: string
+  notes: string
 }
 
 interface FormErrors {
@@ -25,6 +27,7 @@ interface FormErrors {
   start_date?: string
   end_date?: string
   monthly_rate?: string
+  registration_fee?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -54,6 +57,14 @@ function validate(values: FormValues, isEdit: boolean): FormErrors {
     const rate = Number(values.monthly_rate)
     if (isNaN(rate) || rate <= 0 || !Number.isInteger(rate)) {
       errors.monthly_rate = 'Must be a positive integer (e.g. 50000)'
+    }
+  }
+
+  // Validate registration_fee if provided
+  if (values.registration_fee.trim()) {
+    const fee = Number(values.registration_fee)
+    if (isNaN(fee) || fee < 0) {
+      errors.registration_fee = 'Must be a non-negative number'
     }
   }
 
@@ -106,6 +117,8 @@ export default function ContractForm({ contract, defaultClientId, onClose }: Con
     start_date: contract?.start_date ?? '',
     end_date: contract?.end_date ?? '',
     monthly_rate: contract?.monthly_rate != null ? String(contract.monthly_rate) : '',
+    registration_fee: '',
+    notes: '',
   })
 
   const [errors, setErrors] = useState<FormErrors>({})
@@ -118,6 +131,8 @@ export default function ContractForm({ contract, defaultClientId, onClose }: Con
       start_date: contract?.start_date ?? '',
       end_date: contract?.end_date ?? '',
       monthly_rate: contract?.monthly_rate != null ? String(contract.monthly_rate) : '',
+      registration_fee: '',
+      notes: '',
     })
     setErrors({})
     setTouched({})
@@ -172,6 +187,8 @@ export default function ContractForm({ contract, defaultClientId, onClose }: Con
           start_date: values.start_date,
           end_date: values.end_date.trim() || null,
           monthly_rate: Number(values.monthly_rate),
+          registration_fee: values.registration_fee.trim() ? Number(values.registration_fee) : undefined,
+          notes: values.notes.trim() || undefined,
         }
         await updateContract.mutateAsync(input)
       } else {
@@ -180,6 +197,8 @@ export default function ContractForm({ contract, defaultClientId, onClose }: Con
           start_date: values.start_date,
           end_date: values.end_date.trim() || null,
           monthly_rate: Number(values.monthly_rate),
+          registration_fee: values.registration_fee.trim() ? Number(values.registration_fee) : undefined,
+          notes: values.notes.trim() || undefined,
         }
         await createContract.mutateAsync(input)
       }
@@ -291,6 +310,34 @@ export default function ContractForm({ contract, defaultClientId, onClose }: Con
               className={`border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 errors.monthly_rate ? 'border-red-400' : 'border-gray-300'
               }`}
+            />
+          </Field>
+
+          {/* Registration Fee */}
+          <Field label="Registration Fee (UGX)" error={errors.registration_fee}>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={values.registration_fee}
+              onChange={(e) => handleChange('registration_fee', e.target.value)}
+              onBlur={() => handleBlur('registration_fee')}
+              placeholder="e.g. 50000 (optional)"
+              className={`border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                errors.registration_fee ? 'border-red-400' : 'border-gray-300'
+              }`}
+            />
+            <p className="text-xs text-gray-500">One-time fee charged at contract creation (optional)</p>
+          </Field>
+
+          {/* Notes */}
+          <Field label="Notes">
+            <textarea
+              value={values.notes}
+              onChange={(e) => handleChange('notes', e.target.value)}
+              placeholder="Additional notes about this contract (optional)"
+              rows={3}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </Field>
 

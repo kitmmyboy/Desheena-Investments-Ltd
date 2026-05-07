@@ -50,11 +50,11 @@ async function fetchKpis(): Promise<KpiData> {
       .gte('updated_at', today)
       .gt('paid_amount', 0),
 
-    // 4. Active clients — contracts with status = 'active' AND
-    //    (end_date is null OR end_date >= today)
+    // 4. Active clients — unique clients with active contracts
+    //    (contract status = 'active' AND end_date is null OR end_date >= today)
     supabase
       .from('contracts')
-      .select('client_id', { count: 'exact', head: true })
+      .select('client_id')
       .eq('status', 'active')
       .or(`end_date.is.null,end_date.gte.${today}`),
 
@@ -85,11 +85,16 @@ async function fetchKpis(): Promise<KpiData> {
       0,
     ) ?? 0
 
+  // Count unique active clients (by client_id from contracts)
+  const uniqueActiveClients = new Set(
+    activeClientsRes.data?.map((c: { client_id: string }) => c.client_id) ?? []
+  ).size
+
   return {
     collectionsToday: collectionsTodayRes.count ?? 0,
     weightToday,
     revenueToday,
-    activeClients: activeClientsRes.count ?? 0,
+    activeClients: uniqueActiveClients,
     pendingSync: pendingSyncRes.count ?? 0,
     openComplaints: openComplaintsRes.count ?? 0,
   }
