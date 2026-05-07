@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/storage_warning_widget.dart';
+import '../../db/index.dart';
 import '../auth/auth_provider.dart';
 import '../auth/login_screen.dart';
 import 'collection_recording_screen.dart';
@@ -11,7 +12,6 @@ import 'connectivity_indicator.dart';
 import 'route_map_screen.dart';
 import 'route_provider.dart';
 import 'sync_status_widget.dart';
-import '../../db/index.dart';
 
 /// Main Driver screen — shows the assigned route and daily pickup list.
 ///
@@ -167,10 +167,17 @@ class _RouteClientList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clients = routeData.clients;
+    final schedulesByClient = routeData.schedulesByClient;
+
+    // Count how many clients are due today
+    final dueTodayCount = clients.where((c) {
+      final schedules = schedulesByClient[c.clientId] ?? [];
+      return isClientDueToday(schedules);
+    }).length;
 
     return Column(
       children: [
-        // Route info header — always visible
+        // Route info header
         Container(
           width: double.infinity,
           margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
@@ -198,27 +205,57 @@ class _RouteClientList extends StatelessWidget {
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
                           'Zone: ${routeData.route.zone}',
-                          style: const TextStyle(color: Colors.white70, fontSize: 13),
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 13),
                         ),
                       ),
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: clients.isNotEmpty ? Colors.green.shade600 : Colors.orange.shade700,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '${clients.length} stops',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: clients.isNotEmpty
+                          ? Colors.green.shade600
+                          : Colors.orange.shade700,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${clients.length} stops',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13),
+                    ),
+                  ),
+                  if (dueTodayCount > 0) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade600,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '$dueTodayCount due today',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ],
           ),
         ),
-        // Client list or empty message
+        // Client list
         Expanded(
           child: clients.isEmpty
               ? Center(
@@ -227,11 +264,13 @@ class _RouteClientList extends StatelessWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.location_off_outlined, size: 48, color: Colors.orange.shade300),
+                        Icon(Icons.location_off_outlined,
+                            size: 48, color: Colors.orange.shade300),
                         const SizedBox(height: 16),
                         const Text(
                           'No stops added yet',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 8),
                         Text(
@@ -249,7 +288,12 @@ class _RouteClientList extends StatelessWidget {
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final client = clients[index];
-                    return _ClientCard(client: client);
+                    final schedules =
+                        schedulesByClient[client.clientId] ?? [];
+                    return _ClientCard(
+                      client: client,
+                      schedules: schedules,
+                    );
                   },
                 ),
         ),
@@ -263,32 +307,66 @@ class _RouteClientList extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _ClientCard extends StatelessWidget {
-  const _ClientCard({required this.client});
+  const _ClientCard({required this.client, required this.schedules});
 
   final RouteClientsLocalData client;
+  final List<ClientSchedulesLocalData> schedules;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final dueToday = isClientDueToday(schedules);
+    final label = scheduleLabel(schedules);
 
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: dueToday ? 3 : 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: dueToday
+            ? BorderSide(color: Colors.orange.shade400, width: 1.5)
+            : BorderSide.none,
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Client name — large text (Req 3.3).
-            Text(
-              client.clientName,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+            // Client name + Due Today badge
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    client.clientName,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (dueToday)
+                  Container(
+                    margin: const EdgeInsets.only(left: 8),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade100,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.orange.shade300),
+                    ),
+                    child: Text(
+                      'Due today',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.orange.shade800,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 6),
 
-            // Location address (Req 3.3).
+            // Location
             Row(
               children: [
                 const Icon(Icons.location_on_outlined, size: 16),
@@ -305,13 +383,14 @@ class _ClientCard extends StatelessWidget {
                   IconButton(
                     icon: const Icon(Icons.directions, color: Colors.blue),
                     tooltip: 'Navigate',
-                    onPressed: () => _launchNavigation(client.gpsLat!, client.gpsLng!),
+                    onPressed: () =>
+                        _launchNavigation(client.gpsLat!, client.gpsLng!),
                   ),
               ],
             ),
             const SizedBox(height: 4),
 
-            // Waste type (Req 3.3).
+            // Waste type
             Row(
               children: [
                 const Icon(Icons.delete_outline, size: 16),
@@ -322,9 +401,29 @@ class _ClientCard extends StatelessWidget {
                 ),
               ],
             ),
+
+            // Schedule label (if any)
+            if (label.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(Icons.schedule,
+                      size: 15, color: Colors.grey.shade500),
+                  const SizedBox(width: 4),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
             const SizedBox(height: 16),
 
-            // Large "Record Collection" button (Req 3.3, 3.4).
+            // Record Collection button
             SizedBox(
               width: double.infinity,
               height: 52,
@@ -332,9 +431,13 @@ class _ClientCard extends StatelessWidget {
                 icon: const Icon(Icons.check_circle_outline),
                 label: const Text(
                   'Record Collection',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w600),
                 ),
                 style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      dueToday ? Colors.orange.shade600 : null,
+                  foregroundColor: dueToday ? Colors.white : null,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -348,11 +451,8 @@ class _ClientCard extends StatelessWidget {
     );
   }
 
-  /// Navigates to the collection recording screen (Requirement 3.4, 4.1).
   void _navigateToRecording(
-    BuildContext context,
-    RouteClientsLocalData client,
-  ) {
+      BuildContext context, RouteClientsLocalData client) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => CollectionRecordingScreen(client: client),
@@ -362,22 +462,16 @@ class _ClientCard extends StatelessWidget {
 
   Future<void> _launchNavigation(double lat, double lng) async {
     final url = 'google.navigation:q=$lat,$lng';
-    final appleUrl = 'https://maps.apple.com/?q=$lat,$lng';
-    
-    // For universal compatibility, we can also use:
-    final webUrl = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
-
+    final webUrl =
+        'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
     try {
       if (await canLaunchUrl(Uri.parse(url))) {
         await launchUrl(Uri.parse(url));
-      } else if (await canLaunchUrl(Uri.parse(appleUrl))) {
-        await launchUrl(Uri.parse(appleUrl));
       } else {
-        await launchUrl(Uri.parse(webUrl), mode: LaunchMode.externalApplication);
+        await launchUrl(Uri.parse(webUrl),
+            mode: LaunchMode.externalApplication);
       }
-    } catch (_) {
-      // Handle launch error
-    }
+    } catch (_) {}
   }
 
   String _formatWasteType(String raw) {

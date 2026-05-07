@@ -51,20 +51,12 @@ export default function StaffForm({ staff, onClose }: StaffFormProps) {
     try {
       let linkedUserId = staff?.user_id ?? undefined
       if (!isEdit && role === "Driver" && email && password) {
-        const { data: { session } } = await supabase.auth.getSession()
-        const token = session?.access_token
-        if (!token) throw new Error("Not authenticated")
-        const res = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-users`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, apikey: import.meta.env.VITE_SUPABASE_ANON_KEY },
-            body: JSON.stringify({ email: email.trim(), password, full_name: fullName.trim(), phone: phone || undefined, role: "Driver" }),
-          }
-        )
-        const json = await res.json()
-        if (!res.ok) throw new Error(json.error ?? "Failed to create user account")
-        linkedUserId = json.user?.id
+        const { data: json, error: fnError } = await supabase.functions.invoke('manage-users', {
+          method: 'POST',
+          body: { email: email.trim(), password, full_name: fullName.trim(), phone: phone || undefined, role: "Driver" },
+        })
+        if (fnError) throw new Error(fnError.message ?? "Failed to create user account")
+        linkedUserId = json?.user?.id
       }
       const input: CreateStaffInput = {
         full_name: fullName.trim(),

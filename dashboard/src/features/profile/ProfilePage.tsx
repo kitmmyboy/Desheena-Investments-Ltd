@@ -49,28 +49,12 @@ async function callUpdateProfile(payload: {
   phone?: string
   new_password?: string
 }): Promise<ProfileData> {
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session?.access_token
-  if (!token) throw new Error('Not authenticated')
-
-  const res = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-profile`,
-    {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify(payload),
-    }
-  )
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error ?? 'Update failed')
-  }
-  const json = await res.json()
-  return json.user as ProfileData
+  const { data, error } = await supabase.functions.invoke('update-profile', {
+    method: 'PUT',
+    body: payload,
+  })
+  if (error) throw new Error(error.message ?? 'Update failed')
+  return data.user as ProfileData
 }
 
 // ---------------------------------------------------------------------------

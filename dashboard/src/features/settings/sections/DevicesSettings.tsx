@@ -25,22 +25,11 @@ interface DriverRow {
 // ---------------------------------------------------------------------------
 
 async function fetchDrivers(): Promise<DriverRow[]> {
-  // Get all Driver-role users
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session?.access_token
-  if (!token) return []
+  const { data: json, error } = await supabase.functions.invoke('manage-users', {
+    method: 'GET',
+  })
+  if (error || !json) return []
 
-  const res = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-users`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-      },
-    }
-  )
-  if (!res.ok) return []
-  const json = await res.json()
   const users = (json.users ?? []) as Array<{
     id: string
     email: string
@@ -51,7 +40,6 @@ async function fetchDrivers(): Promise<DriverRow[]> {
 
   const drivers = users.filter((u) => u.role === 'Driver')
 
-  // For each driver, get last sync and pending count
   const rows: DriverRow[] = await Promise.all(
     drivers.map(async (driver) => {
       const [lastSyncRes, pendingRes] = await Promise.all([
@@ -113,40 +101,17 @@ export default function DevicesSettings() {
   })
 
   async function handleForceLogout(driverId: string) {
-    const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token
-    if (!token) return
-
-    await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-users?id=${driverId}`,
-      {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-      }
-    )
+    await supabase.functions.invoke(`manage-users?id=${driverId}`, {
+      method: 'DELETE',
+    })
     queryClient.invalidateQueries({ queryKey: ['devices_drivers'] })
   }
 
   async function handleDisableDevice(driverId: string) {
-    const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token
-    if (!token) return
-
-    await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-users`,
-      {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({ id: driverId, user_metadata: { device_disabled: true } }),
-      }
-    )
+    await supabase.functions.invoke('manage-users', {
+      method: 'PUT',
+      body: { id: driverId, user_metadata: { device_disabled: true } },
+    })
     queryClient.invalidateQueries({ queryKey: ['devices_drivers'] })
   }
 

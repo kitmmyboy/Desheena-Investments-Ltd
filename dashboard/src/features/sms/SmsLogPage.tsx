@@ -231,30 +231,20 @@ export default function SmsLogPage() {
     setTestSending(true)
     setTestResult(null)
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-          },
-          body: JSON.stringify({
-            phone: testPhone.trim(),
-            message: 'Test SMS from Desheena dashboard. Gateway is working correctly.',
-            event_type: 'invoice_generated',
-          }),
-        }
-      )
-      const json = await res.json()
-      if (json.success) {
+      const { data: json, error: fnError } = await supabase.functions.invoke('send-sms', {
+        method: 'POST',
+        body: {
+          phone: testPhone.trim(),
+          message: 'Test SMS from Desheena dashboard. Gateway is working correctly.',
+          event_type: 'invoice_generated',
+        },
+      })
+      if (fnError) throw new Error(fnError.message)
+      if (json?.success) {
         setTestResult({ success: true, message: `Sent! Message ID: ${json.message_id}` })
         refetch()
       } else {
-        setTestResult({ success: false, message: json.error ?? 'Send failed' })
+        setTestResult({ success: false, message: json?.error ?? 'Send failed' })
       }
     } catch (err) {
       setTestResult({ success: false, message: err instanceof Error ? err.message : 'Network error' })

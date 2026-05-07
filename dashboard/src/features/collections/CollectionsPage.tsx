@@ -10,6 +10,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useCollections, type CollectionRecord, type CollectionsFiltersState } from './useCollections'
+import { useDueToday } from './useDueToday'
 import CollectionsFilters from './CollectionsFilters'
 import CollectionsMapView from './CollectionsMapView'
 
@@ -147,6 +148,10 @@ export default function CollectionsPage() {
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'collected_at', desc: true },
   ])
+  const [showDueToday, setShowDueToday] = useState(true)
+
+  const { data: dueToday = [], isLoading: dueTodayLoading } = useDueToday()
+  const pendingCount = dueToday.filter((d) => !d.already_collected).length
 
   const sortBy = sorting[0]?.id ?? 'collected_at'
   const sortDesc = sorting[0]?.desc ?? true
@@ -256,6 +261,88 @@ export default function CollectionsPage() {
 
       {/* Map view */}
       {viewMode === 'map' && <CollectionsMapView />}
+
+      {/* Due Today panel */}
+      {viewMode === 'table' && (dueToday.length > 0 || dueTodayLoading) && (
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowDueToday((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-gray-900">Due Today</span>
+              {!dueTodayLoading && (
+                <>
+                  {pendingCount > 0 && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                      {pendingCount} pending
+                    </span>
+                  )}
+                  {dueToday.length - pendingCount > 0 && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                      {dueToday.length - pendingCount} done
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+            <svg
+              className={`h-4 w-4 text-gray-400 transition-transform ${showDueToday ? 'rotate-180' : ''}`}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {showDueToday && (
+            <div className="border-t border-gray-100">
+              {dueTodayLoading ? (
+                <div className="px-4 py-3 text-sm text-gray-400 animate-pulse">Loading schedule…</div>
+              ) : (
+                <div className="divide-y divide-gray-50">
+                  {dueToday.map((client) => (
+                    <div
+                      key={client.client_id}
+                      className={`flex items-center justify-between px-4 py-2.5 ${
+                        client.already_collected ? 'opacity-50' : ''
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${
+                          client.already_collected ? 'bg-green-400' : 'bg-orange-400'
+                        }`} />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{client.client_name}</p>
+                          <p className="text-xs text-gray-500 truncate">{client.location_text}{client.zone ? ` · ${client.zone}` : ''}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 ml-3">
+                        <span className="text-xs text-gray-400">
+                          {client.schedule_type === 'interval'
+                            ? `Every ${client.interval_days}d`
+                            : client.schedule_type === 'weekly'
+                            ? 'Weekly'
+                            : 'One-off'}
+                        </span>
+                        {client.already_collected ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                            ✓ Collected
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                            Pending
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Table view — filters + table */}
       {viewMode === 'table' && (

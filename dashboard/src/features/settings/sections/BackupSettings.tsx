@@ -63,23 +63,12 @@ export default function BackupSettings() {
     setIsCreating(true)
     setCreateError(null)
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
-      if (!token) throw new Error('Not authenticated')
+      const { data, error } = await supabase.functions.invoke('create-backup', {
+        method: 'POST',
+      })
 
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-backup`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-          },
-        }
-      )
-      if (!res.ok) throw new Error('Backup creation failed')
-      const newBackup = await res.json() as BackupRecord
+      if (error) throw new Error(error.message)
+      const newBackup = data as BackupRecord
 
       // Save updated history
       const updated = [newBackup, ...backupHistory].slice(0, 20) // keep last 20

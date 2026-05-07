@@ -5,6 +5,7 @@ import {
 } from 'recharts'
 import { useKpiData } from './useKpiData'
 import { useFinancialReport, useDefaultersReport } from '../reports/useReports'
+import { useDueToday } from './useDueToday'
 import { Link } from 'react-router-dom'
 
 // ---------------------------------------------------------------------------
@@ -193,6 +194,9 @@ export default function KpiPanel() {
   const { kpis, isLoading } = useKpiData()
   const { data: financial, isLoading: finLoading } = useFinancialReport()
   const { data: defaulters = [], isLoading: defLoading } = useDefaultersReport()
+  const { data: dueToday = [], isLoading: dueTodayLoading } = useDueToday()
+
+  const pendingCollections = dueToday.filter((d) => !d.already_collected).length
 
   const fmt = (n: number | undefined) => n !== undefined ? n.toLocaleString() : '—'
   const fmtUgx = (n: number | undefined) => n !== undefined ? `UGX ${n.toLocaleString()}` : '—'
@@ -221,6 +225,7 @@ export default function KpiPanel() {
           <KpiCard icon="🔄" label="Pending Sync" value={fmt(kpis?.pendingSync)} isLoading={isLoading} iconBg="bg-orange-100" />
           <KpiCard icon="📋" label="Open Complaints" value={fmt(kpis?.openComplaints)} isLoading={isLoading} iconBg="bg-red-100" href="/dashboard/complaints" />
           <KpiCard icon="💰" label="Revenue Today" value={fmtUgx(kpis?.revenueToday)} isLoading={isLoading} iconBg="bg-yellow-100" />
+          <KpiCard icon="📅" label="Due Today" value={dueTodayLoading ? undefined : `${pendingCollections} pending`} isLoading={dueTodayLoading} iconBg="bg-indigo-100" href="/dashboard/collections" />
         </div>
       </section>
 

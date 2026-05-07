@@ -11,7 +11,6 @@ import 'route_repository.dart';
 // Repository provider
 // ---------------------------------------------------------------------------
 
-/// Provides the singleton [RouteRepository] instance.
 final routeRepositoryProvider = Provider<RouteRepository>((ref) {
   final db = ref.watch(appDatabaseProvider);
   return RouteRepository(db: db);
@@ -21,15 +20,9 @@ final routeRepositoryProvider = Provider<RouteRepository>((ref) {
 // Connectivity provider
 // ---------------------------------------------------------------------------
 
-/// StreamProvider that emits `true` when the device is online and `false`
-/// when offline.
-///
-/// Implements Requirement 3.5 — persistent offline/online status indicator.
 final connectivityStatusProvider = StreamProvider<bool>((ref) {
   return Connectivity().onConnectivityChanged.map(
-        (results) => results.any(
-          (r) => r != ConnectivityResult.none,
-        ),
+        (results) => results.any((r) => r != ConnectivityResult.none),
       );
 });
 
@@ -37,45 +30,91 @@ final connectivityStatusProvider = StreamProvider<bool>((ref) {
 // Connectivity-triggered sync
 // ---------------------------------------------------------------------------
 
-/// Listens to [connectivityStatusProvider] and automatically triggers
-/// [SyncEngine.syncNow] whenever the device comes online.
-///
-/// Implements Requirement 3.6 — auto-trigger sync on connectivity restore.
 final connectivitySyncListenerProvider = Provider<void>((ref) {
   ref.listen<AsyncValue<bool>>(connectivityStatusProvider, (previous, next) {
     final isOnline = next.valueOrNull ?? false;
     final wasOnline = previous?.valueOrNull ?? false;
-
-    // Only trigger when transitioning from offline → online.
     if (isOnline && !wasOnline) {
-      // 1. Upload any pending collection records.
       final engine = ref.read(syncEngineProvider);
       engine.syncNow();
-
-      // 2. Re-download the latest route assignment from Supabase so that
-      //    any route changes made in the admin dashboard are immediately
-      //    reflected on the driver's phone (Requirement 3.1).
       ref.invalidate(driverRouteProvider);
     }
   });
 });
 
 // ---------------------------------------------------------------------------
+// Schedule helpers
+// ---------------------------------------------------------------------------
+
+bool _isIntervalDueToday(String startDate, int intervalDays) {
+  final start = DateTime.parse(startDate);
+  final today = DateTime.now();
+  final startNorm = DateTime(start.year, start.month, start.day);
+  final todayNorm = DateTime(today.year, today.month, today.day);
+  if (todayNorm.isBefore(startNorm)) return false;
+  final diff = todayNorm.difference(startNorm).inDays;
+  return diff % intervalDays == 0;
+}
+
+/// Returns true if any of the client's cached schedules are due today.
+bool isClientDueToday(List<ClientSchedulesLocalData> schedules) {
+  final todayDow = DateTime.now().weekday % 7; // Dart: Mon=1…Sun=7 → 0=Sun
+  final todayStr =
+      DateTime.now().toIso8601String().split('T')[0]; // "YYYY-MM-DD"
+
+  for (final s in schedules) {
+    if (s.dayOfWeek != null && s.dayOfWeek == todayDow) return true;
+    if (s.specificDate != null && s.specificDate == todayStr) return true;
+    if (s.intervalDays != null &&
+        s.intervalStartDate != null &&
+        _isIntervalDueToday(s.intervalStartDate!, s.intervalDays!)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/// Returns a human-readable schedule summary for a client.
+String scheduleLabel(List<ClientSchedulesLocalData> schedules) {
+  if (schedules.isEmpty) return '';
+  final parts = <String>[];
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  final weeklyDays = schedules
+      .where((s) => s.dayOfWeek != null)
+      .map((s) => dayNames[s.dayOfWeek!])
+      .toList();
+  if (weeklyDays.isNotEmpty) parts.add(weeklyDays.join('/'));
+
+  for (final s in schedules.where((s) => s.intervalDays != null)) {
+    parts.add('Every ${s.intervalDays}d');
+  }
+
+  final specificCount =
+      schedules.where((s) => s.specificDate != null).length;
+  if (specificCount > 0) parts.add('$specificCount one-off');
+
+  return parts.join(' · ');
+}
+
+// ---------------------------------------------------------------------------
 // Route data model
 // ---------------------------------------------------------------------------
 
-/// Holds the resolved route and its ordered client list.
 class DriverRouteData {
   const DriverRouteData({
     required this.route,
     required this.clients,
+    required this.schedulesByClient,
     required this.isFromCache,
   });
 
   final RoutesLocalData route;
   final List<RouteClientsLocalData> clients;
 
-  /// True when the data was served from Local_DB without a fresh download.
+  /// Map of clientId → list of schedule entries (cached locally).
+  final Map<String, List<ClientSchedulesLocalData>> schedulesByClient;
+
   final bool isFromCache;
 }
 
@@ -83,44 +122,37 @@ class DriverRouteData {
 // Driver route provider
 // ---------------------------------------------------------------------------
 
-/// FutureProvider that:
-/// 1. Checks connectivity.
-/// 2. If online: calls [RouteRepository.downloadAndCacheRoute] then reads
-///    local data (Requirement 3.1).
-/// 3. If offline: reads local data directly (Requirement 3.2).
-///
-/// Returns null when no route is assigned to the driver.
 final driverRouteProvider = FutureProvider<DriverRouteData?>((ref) async {
   final repo = ref.watch(routeRepositoryProvider);
   final authRepo = ref.read(authRepositoryProvider);
 
-  // Resolve the current driver's user id.
   final session = await authRepo.getOfflineSession();
   final driverId = session?.userId;
   if (driverId == null) return null;
 
-  // Check current connectivity (one-shot check).
   final connectivityResults = await Connectivity().checkConnectivity();
   final isOnline = connectivityResults.any((r) => r != ConnectivityResult.none);
 
   String? routeId;
 
   if (isOnline) {
-    // Download fresh data from Supabase and cache it locally.
     routeId = await repo.downloadAndCacheRoute(driverId);
   }
 
-  // Read from Local_DB (works for both online and offline paths).
   final localRoute = await repo.getLocalRoute(driverId);
   if (localRoute == null) return null;
 
   routeId ??= localRoute.id;
 
   final clients = await repo.getLocalRouteClients(routeId);
+  final clientIds = clients.map((c) => c.clientId).toList();
+  final schedulesByClient =
+      await repo.getLocalSchedulesForClients(clientIds);
 
   return DriverRouteData(
     route: localRoute,
     clients: clients,
+    schedulesByClient: schedulesByClient,
     isFromCache: !isOnline,
   );
 });

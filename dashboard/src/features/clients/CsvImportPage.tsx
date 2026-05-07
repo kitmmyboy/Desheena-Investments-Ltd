@@ -590,27 +590,12 @@ function parseCsvLine(line: string): string[] {
 // ---------------------------------------------------------------------------
 
 async function runBatchImport(clients: ParsedClient[]): Promise<ImportResult> {
-  const { data: { session } } = await supabase.auth.getSession()
-  const token = session?.access_token
-  if (!token) throw new Error("Not authenticated")
-
-  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/batch-import-clients`
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`,
-      "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify({ clients }),
+  const { data, error } = await supabase.functions.invoke('batch-import-clients', {
+    method: 'POST',
+    body: { clients },
   })
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error ?? `Import failed: ${res.status}`)
-  }
-
-  return res.json()
+  if (error) throw new Error(error.message ?? 'Import failed')
+  return data as ImportResult
 }
 
 // ---------------------------------------------------------------------------

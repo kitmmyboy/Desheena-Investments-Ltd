@@ -12,6 +12,7 @@ class RouteRepository {
   final AppDatabase _db;
 
   RoutesDao get _routesDao => _db.routesDao;
+  ClientSchedulesDao get _schedulesDao => _db.clientSchedulesDao;
 
   SupabaseClient get _client => Supabase.instance.client;
 
@@ -21,14 +22,6 @@ class RouteRepository {
 
   /// Fetches the driver's assigned route from Supabase and upserts all data
   /// into Local_DB via [RoutesDao].
-  ///
-  /// Steps:
-  /// 1. Query `route_drivers` to get the `route_id` for this driver.
-  /// 2. Query `routes` for route details.
-  /// 3. Query `route_clients` joined with `clients` for all clients on the route.
-  /// 4. Upsert everything into Local_DB.
-  ///
-  /// Returns the route id on success, or null if the driver has no assigned route.
   Future<String?> downloadAndCacheRoute(String driverId) async {
     // 1. Get the route_id assigned to this driver.
     final routeDriverRow = await _client
@@ -37,10 +30,7 @@ class RouteRepository {
         .eq('driver_id', driverId)
         .maybeSingle();
 
-    if (routeDriverRow == null) {
-      // Driver has no assigned route — nothing to cache.
-      return null;
-    }
+    if (routeDriverRow == null) return null;
 
     final routeId = routeDriverRow['route_id'] as String;
 
@@ -51,7 +41,6 @@ class RouteRepository {
         .eq('id', routeId)
         .single();
 
-    // Upsert route into Local_DB.
     await _routesDao.upsertRoute(
       RoutesLocalCompanion(
         id: Value(routeRow['id'] as String),
@@ -72,27 +61,26 @@ class RouteRepository {
         .eq('route_id', routeId)
         .order('sequence_order');
 
-    // 4. Upsert each route client into Local_DB.
+    // Collect client IDs for schedule download
+    final clientIds = <String>[];
+
     for (final row in clientRows as List<dynamic>) {
       final client = row['clients'] as Map<String, dynamic>? ?? {};
       final id = row['id'] as String? ?? '';
       if (id.isEmpty) continue;
 
+      final clientId = row['client_id'] as String? ?? '';
+      if (clientId.isNotEmpty) clientIds.add(clientId);
+
       await _routesDao.upsertRouteClient(
         RouteClientsLocalCompanion(
           id: Value(id),
           routeId: Value(routeId),
-          clientId: Value(row['client_id'] as String? ?? ''),
+          clientId: Value(clientId),
           clientName: Value(client['name'] as String? ?? 'Unknown'),
-          locationText: Value(
-            client['location_text'] as String? ?? '',
-          ),
-          gpsLat: Value(
-            (client['gps_lat'] as num?)?.toDouble(),
-          ),
-          gpsLng: Value(
-            (client['gps_lng'] as num?)?.toDouble(),
-          ),
+          locationText: Value(client['location_text'] as String? ?? ''),
+          gpsLat: Value((client['gps_lat'] as num?)?.toDouble()),
+          gpsLng: Value((client['gps_lng'] as num?)?.toDouble()),
           wasteType: Value(
             client['waste_type'] as String? ??
                 row['waste_type'] as String? ??
@@ -103,35 +91,80 @@ class RouteRepository {
       );
     }
 
+    // 4. Download and cache collection schedules for all route clients.
+    if (clientIds.isNotEmpty) {
+      await _downloadAndCacheSchedules(clientIds);
+    }
+
     return routeId;
+  }
+
+  /// Downloads collection schedules for the given client IDs and caches them.
+  Future<void> _downloadAndCacheSchedules(List<String> clientIds) async {
+    try {
+      final scheduleRows = await _client
+          .from('collection_schedules')
+          .select(
+              'id, client_id, day_of_week, specific_date, interval_days, interval_start_date')
+          .inFilter('client_id', clientIds);
+
+      // Group by client_id and replace
+      final byClient = <String, List<ClientSchedulesLocalCompanion>>{};
+      for (final row in scheduleRows as List<dynamic>) {
+        final clientId = row['client_id'] as String? ?? '';
+        if (clientId.isEmpty) continue;
+        byClient.putIfAbsent(clientId, () => []).add(
+              ClientSchedulesLocalCompanion(
+                id: Value(row['id'] as String),
+                clientId: Value(clientId),
+                dayOfWeek: Value(row['day_of_week'] as int?),
+                specificDate: Value(row['specific_date'] as String?),
+                intervalDays: Value(row['interval_days'] as int?),
+                intervalStartDate:
+                    Value(row['interval_start_date'] as String?),
+              ),
+            );
+      }
+
+      for (final entry in byClient.entries) {
+        await _schedulesDao.replaceSchedulesForClient(
+            entry.key, entry.value);
+      }
+    } catch (e) {
+      // Silently fail — schedules are best-effort
+      print('Failed to download schedules: $e');
+    }
   }
 
   // ---------------------------------------------------------------------------
   // Offline: read from Local_DB
   // ---------------------------------------------------------------------------
 
-  /// Returns the route assigned to [driverId] from Local_DB.
-  ///
-  /// Because Local_DB stores routes by id (not driver_id), we return the first
-  /// available route. In practice a driver has exactly one route.
   Future<RoutesLocalData?> getLocalRoute(String driverId) async {
     final routes = await _routesDao.getAllRoutes();
     return routes.isEmpty ? null : routes.first;
   }
 
-  /// Returns the ordered list of clients for [routeId] from Local_DB.
-  Future<List<RouteClientsLocalData>> getLocalRouteClients(
-    String routeId,
-  ) =>
+  Future<List<RouteClientsLocalData>> getLocalRouteClients(String routeId) =>
       _routesDao.getClientsForRoute(routeId);
+
+  /// Returns all cached schedules for a list of client IDs.
+  Future<Map<String, List<ClientSchedulesLocalData>>>
+      getLocalSchedulesForClients(List<String> clientIds) async {
+    final all = await _schedulesDao.getAllSchedules();
+    final result = <String, List<ClientSchedulesLocalData>>{};
+    for (final s in all) {
+      if (clientIds.contains(s.clientId)) {
+        result.putIfAbsent(s.clientId, () => []).add(s);
+      }
+    }
+    return result;
+  }
 
   // ---------------------------------------------------------------------------
   // Real-time tracking
   // ---------------------------------------------------------------------------
 
-  /// Updates the driver's current position in the `driver_locations` table.
-  ///
-  /// Implements Requirement for real-time tracking from the dashboard.
   Future<void> updateDriverLocation({
     required String driverId,
     required double lat,
@@ -149,7 +182,6 @@ class RouteRepository {
         'updated_at': DateTime.now().toIso8601String(),
       });
     } catch (e) {
-      // Silently fail if offline or error occurs; tracking is best-effort.
       print('Failed to update driver location: $e');
     }
   }

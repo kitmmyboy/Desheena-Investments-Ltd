@@ -125,22 +125,11 @@ export default function IntegrationsSettings() {
   async function testSmtp() {
     setSmtpStatus('testing')
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/test-smtp`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-          },
-          body: JSON.stringify({ smtp_host: values['smtp_host'] }),
-        }
-      )
-      const json = await res.json()
-      setSmtpStatus(json.success ? 'connected' : 'failed')
+      const { data, error } = await supabase.functions.invoke('test-smtp', {
+        method: 'POST',
+        body: { smtp_host: values['smtp_host'] },
+      })
+      setSmtpStatus(error || !data?.success ? 'failed' : 'connected')
     } catch {
       setSmtpStatus('failed')
     }
