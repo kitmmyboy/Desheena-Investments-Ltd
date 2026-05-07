@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { useRecordPayment } from './useInvoices'
+import { useRecordPayment, useClearDefaulter } from './useInvoices'
 import { formatCurrency } from '../../lib/utils'
 
 interface ManualPaymentModalProps {
   clientId: string
   clientName: string
+  contractId?: string
   outstandingBalance: number
   invoiceId?: string // If provided, records against this specific invoice
   onClose: () => void
@@ -13,6 +14,7 @@ interface ManualPaymentModalProps {
 export default function ManualPaymentModal({
   clientId,
   clientName,
+  contractId,
   outstandingBalance,
   invoiceId,
   onClose,

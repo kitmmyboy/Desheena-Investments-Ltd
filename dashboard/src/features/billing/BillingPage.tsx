@@ -7,7 +7,19 @@ import {
   createColumnHelper,
   type PaginationState,
   type ExpandedState,
+  type RowData,
 } from '@tanstack/react-table'
+
+declare module '@tanstack/react-table' {
+  interface TableMeta<TData extends RowData> {
+    onClearDefaulter?: (data: {
+      clientId: string
+      clientName: string
+      contractId: string
+      outstandingBalance: number
+    }) => void
+  }
+}
 import { useInvoices, type Invoice } from './useInvoices'
 import { useContractDefaulters, type ContractDefaulter, type MonthBreakdown } from './useContractDefaulters'
 import { useContracts, type ContractWithClient, type ContractStatusFilter } from './useContracts'
@@ -18,31 +30,7 @@ import { supabase } from '../../lib/supabase'
 import { downloadCsv } from '../../lib/exportCsv'
 import ManualPaymentModal from './ManualPaymentModal'
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatCurrency(amount: number): string {
-  return `UGX ${amount.toLocaleString()}`
-}
-
-function formatDate(dateStr: string): string {
-  if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleDateString('en-UG', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
-function formatPeriod(period: string | null): string {
-  if (!period) return '—'
-  // period is stored as YYYY-MM
-  const [year, month] = period.split('-')
-  if (!year || !month) return period
-  const date = new Date(Number(year), Number(month) - 1, 1)
-  return date.toLocaleDateString('en-UG', { year: 'numeric', month: 'long' })
-}
+import { formatCurrency, formatDate, formatPeriod } from '../../lib/utils'
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -699,7 +687,7 @@ function buildDefaulterColumns() {
             onClick={() => {
               // This will trigger the Modal with clientId and outstandingBalance, but NO invoiceId
               // The Modal will then use useClearDefaulter
-              info.table.options.meta?.onClearDefaulter({
+              info.table.options.meta?.onClearDefaulter?.({
                 clientId: info.row.original.client_id,
                 clientName: info.row.original.client_name,
                 contractId: info.row.original.contract_id,
@@ -713,8 +701,6 @@ function buildDefaulterColumns() {
         </div>
       ),
     }),
-  ]
-}
   ]
 }
 

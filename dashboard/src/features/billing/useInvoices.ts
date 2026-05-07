@@ -255,14 +255,6 @@ export function useClearDefaulter() {
       if (paymentsError) throw new Error(paymentsError.message)
 
       // 3. Update invoices to paid
-      const { error: updateError } = await supabase
-        .from('invoices')
-        .update({
-          paid_amount: supabase.raw('amount'), // This is risky in JS Supabase, better to update each or use a query
-          status: 'paid',
-          updated_at: timestamp,
-        })
-        .in('id', invoices.map((i) => i.id))
 
       // Wait, supabase.raw('amount') doesn't work like that in the client.
       // I'll do a promise.all for updates or a more clever query if possible.
