@@ -383,8 +383,6 @@ function parsePaymentColumns(
   if (!sheetYear) return []
 
   const payments: PaymentMonth[] = []
-  // Payment columns start at index 5 (after: name, phone, location, amount, arrears)
-  // 12 months per year
   const startCol = 5
   const months = 12
 
@@ -394,10 +392,9 @@ function parsePaymentColumns(
     const monthNum = m + 1
 
     if (raw == null || String(raw).trim() === "") {
-      // Empty = not recorded, treat as NA for early months, unpaid for recent
-      const monthDate = new Date(sheetYear, m, 1)
-      const isOld = monthDate < new Date(2022, 0, 1)
-      payments.push({ year: sheetYear, month: monthNum, amount_paid: 0, status: isOld ? "na" : "unpaid" })
+      // Mark all blanks as "na" initially — second pass in caller will
+      // upgrade blanks after the first payment to "unpaid"
+      payments.push({ year: sheetYear, month: monthNum, amount_paid: 0, status: "na" })
       continue
     }
 
@@ -420,7 +417,6 @@ function parsePaymentColumns(
 
     const amt = parseAmount(raw)
     if (amt > 0) {
-      // If amount matches monthly rate = fully paid, else partial
       const status = amt >= monthlyRate * 0.9 ? "paid" : "partial"
       payments.push({ year: sheetYear, month: monthNum, amount_paid: amt, status })
     } else {
@@ -429,6 +425,21 @@ function parsePaymentColumns(
   }
 
   return payments
+}
+
+// Apply the "blank after first payment = unpaid" rule to a payment history array
+function applyBlankAfterFirstPaymentRule(history: PaymentMonth[]): PaymentMonth[] {
+  const sorted = [...history].sort((a, b) => a.year - b.year || a.month - b.month)
+  const firstPaidIdx = sorted.findIndex(
+    (p) => (p.status === "paid" || p.status === "partial") && p.amount_paid > 0
+  )
+  if (firstPaidIdx < 0) return sorted // no payments at all — leave as-is
+  return sorted.map((p, i) => {
+    if (i > firstPaidIdx && p.status === "na") {
+      return { ...p, status: "unpaid" as const }
+    }
+    return p
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -495,13 +506,13 @@ function parseDesheenaSheet(ws: XLSX.WorkSheet, sheetName: string, defaultStartD
 
     const zone = detectZone(location_text) ?? detectZone(sheetName) ?? (currentDivision ? detectZone(currentDivision) : null)
 
-    // Parse payment history from this sheet
-    const payment_history = parsePaymentColumns(row, sheetYear, monthly_rate)
+    // Parse payment history from this sheet, then apply blank-after-first-payment rule
+    const raw_payments = parsePaymentColumns(row, sheetYear, monthly_rate)
+    const payment_history = applyBlankAfterFirstPaymentRule(raw_payments)
 
     // Derive contract start date from the first paid/partial month in history
     const firstPaid = payment_history
-      .filter((p) => (p.status === "paid" || p.status === "partial") && p.amount_paid > 0)
-      .sort((a, b) => a.year - b.year || a.month - b.month)[0]
+      .find((p) => (p.status === "paid" || p.status === "partial") && p.amount_paid > 0)
 
     const contract_start_date = firstPaid
       ? `${firstPaid.year}-${String(firstPaid.month).padStart(2, "0")}-01`
@@ -540,8 +551,8 @@ function parseTemplateRow(obj: Record<string, string>, defaultStartDate: string)
   const monthly_rate = parseFloat((obj["monthly_rate"] ?? "0").replace(/,/g, "")) || 0
   const location_text = obj["location_text"]?.trim() || ""
 
-  // Parse payment history from columns like 2023_jan, 2024_feb, etc.
-  const payment_history: PaymentMonth[] = []
+  // --- Pass 1: parse all month columns, blanks = na initially ---
+  const raw_history: PaymentMonth[] = []
   for (const [key, val] of Object.entries(obj)) {
     const m = key.match(/^(\d{4})_([a-z]+)$/i)
     if (!m) continue
@@ -549,30 +560,41 @@ function parseTemplateRow(obj: Record<string, string>, defaultStartDate: string)
     const monthNum = MONTH_MAP[m[2].toLowerCase()]
     if (!monthNum) continue
     const rawStr = String(val ?? "").trim().toUpperCase()
+
     if (!rawStr || rawStr === "NA" || rawStr === "N/A") {
-      // Blank = not active that month (na), not an unpaid debt
-      payment_history.push({ year, month: monthNum, amount_paid: 0, status: "na" })
+      raw_history.push({ year, month: monthNum, amount_paid: 0, status: "na" })
     } else if (rawStr === "PAID" || rawStr === "P" || rawStr === "*") {
-      payment_history.push({ year, month: monthNum, amount_paid: monthly_rate, status: "paid" })
+      raw_history.push({ year, month: monthNum, amount_paid: monthly_rate, status: "paid" })
     } else if (rawStr === "NIL" || rawStr === "NILL" || rawStr === "0") {
-      // NIL explicitly means they were active but didn't pay
-      payment_history.push({ year, month: monthNum, amount_paid: 0, status: "unpaid" })
+      raw_history.push({ year, month: monthNum, amount_paid: 0, status: "unpaid" })
     } else {
       const amt = parseAmount(val)
       if (amt > 0) {
-        payment_history.push({ year, month: monthNum, amount_paid: amt, status: amt >= monthly_rate * 0.9 ? "paid" : "partial" })
+        raw_history.push({ year, month: monthNum, amount_paid: amt, status: amt >= monthly_rate * 0.9 ? "paid" : "partial" })
       } else {
-        payment_history.push({ year, month: monthNum, amount_paid: 0, status: "unpaid" })
+        raw_history.push({ year, month: monthNum, amount_paid: 0, status: "unpaid" })
       }
     }
   }
 
-  // Derive contract start date from the first paid/partial month in history.
-  // Fall back to the explicit contract_start_date column, then the default.
-  const firstPaid = payment_history
-    .filter((p) => (p.status === "paid" || p.status === "partial") && p.amount_paid > 0)
-    .sort((a, b) => a.year - b.year || a.month - b.month)[0]
+  // Sort chronologically
+  raw_history.sort((a, b) => a.year - b.year || a.month - b.month)
 
+  // --- Find first paid/partial month ---
+  const firstPaidIdx = raw_history.findIndex(
+    (p) => (p.status === "paid" || p.status === "partial") && p.amount_paid > 0
+  )
+
+  // --- Pass 2: blank months AFTER first payment become "unpaid" ---
+  const payment_history: PaymentMonth[] = raw_history.map((p, i) => {
+    if (firstPaidIdx >= 0 && i > firstPaidIdx && p.status === "na") {
+      return { ...p, status: "unpaid" }
+    }
+    return p
+  })
+
+  // Contract start date = first payment month
+  const firstPaid = firstPaidIdx >= 0 ? raw_history[firstPaidIdx] : null
   const derivedStartDate = firstPaid
     ? `${firstPaid.year}-${String(firstPaid.month).padStart(2, "0")}-01`
     : parseDate(obj["contract_start_date"], defaultStartDate)
