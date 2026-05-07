@@ -12,6 +12,8 @@ export interface Invoice {
   due_date: string
   status: 'paid' | 'unpaid' | 'overdue'
   invoice_period: string | null
+  period_start: string | null
+  period_end: string | null
   paid_amount?: number
   created_at: string
   clients: {
@@ -87,9 +89,10 @@ export function useInvoices({
         query = query.lte('due_date', dateTo)
       }
 
-      // Requirement: "Start with latest" — sort by period DESC so current month is at top.
-      query = query.order('invoice_period', { ascending: false })
-      query = query.order('created_at', { ascending: false })
+      // Sort by period_start DESC so the most recent month is at the top.
+      // invoice_period is legacy/null; period_start is the reliable date column.
+      query = query.order('period_start', { ascending: false })
+      query = query.order('due_date', { ascending: false })
 
       const from = page * pageSize
       const to = from + pageSize - 1

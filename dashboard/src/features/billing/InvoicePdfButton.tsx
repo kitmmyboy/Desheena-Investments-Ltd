@@ -117,7 +117,7 @@ function generateInvoiceHtml(invoice: Invoice): string {
       </div>
       <div class="detail-block" style="align-items: flex-end;">
         <span class="label">Period</span>
-        <span class="value">${formatPeriod(invoice.invoice_period)}</span>
+        <span class="value">${formatPeriod(invoice.invoice_period ?? invoice.period_start)}</span>
       </div>
       <div class="detail-block" style="align-items: flex-end;">
         <span class="label">Date</span>
@@ -143,7 +143,7 @@ function generateInvoiceHtml(invoice: Invoice): string {
       <tr>
         <td style="padding: 20px 12px;">
           <strong>Waste Collection Services</strong><br/>
-          <span style="font-size: 12px; color: #666;">Service for the month of ${formatPeriod(invoice.invoice_period)}</span>
+          <span style="font-size: 12px; color: #666;">Service for the month of ${formatPeriod(invoice.invoice_period ?? invoice.period_start)}</span>
         </td>
         <td style="text-align: right; padding: 20px 12px; vertical-align: top;">${formatCurrency(invoice.amount)}</td>
       </tr>

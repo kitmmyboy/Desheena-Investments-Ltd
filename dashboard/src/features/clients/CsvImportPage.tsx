@@ -498,6 +498,15 @@ function parseDesheenaSheet(ws: XLSX.WorkSheet, sheetName: string, defaultStartD
     // Parse payment history from this sheet
     const payment_history = parsePaymentColumns(row, sheetYear, monthly_rate)
 
+    // Derive contract start date from the first paid/partial month in history
+    const firstPaid = payment_history
+      .filter((p) => (p.status === "paid" || p.status === "partial") && p.amount_paid > 0)
+      .sort((a, b) => a.year - b.year || a.month - b.month)[0]
+
+    const contract_start_date = firstPaid
+      ? `${firstPaid.year}-${String(firstPaid.month).padStart(2, "0")}-01`
+      : defaultStartDate
+
     clients.push({
       name,
       phone,
@@ -510,7 +519,7 @@ function parseDesheenaSheet(ws: XLSX.WorkSheet, sheetName: string, defaultStartD
       service_frequency: "monthly",
       registration_fee,
       monthly_rate,
-      contract_start_date: defaultStartDate,
+      contract_start_date,
       notes: null,
       payment_history,
       sourceSheet: sheetName,
@@ -558,6 +567,16 @@ function parseTemplateRow(obj: Record<string, string>, defaultStartDate: string)
     }
   }
 
+  // Derive contract start date from the first paid/partial month in history.
+  // Fall back to the explicit contract_start_date column, then the default.
+  const firstPaid = payment_history
+    .filter((p) => (p.status === "paid" || p.status === "partial") && p.amount_paid > 0)
+    .sort((a, b) => a.year - b.year || a.month - b.month)[0]
+
+  const derivedStartDate = firstPaid
+    ? `${firstPaid.year}-${String(firstPaid.month).padStart(2, "0")}-01`
+    : parseDate(obj["contract_start_date"], defaultStartDate)
+
   return {
     name,
     phone: cleanPhone(obj["phone"]),
@@ -570,7 +589,7 @@ function parseTemplateRow(obj: Record<string, string>, defaultStartDate: string)
     service_frequency: obj["service_frequency"]?.trim() || "monthly",
     registration_fee: parseFloat((obj["registration_fee"] ?? "0").replace(/,/g, "")) || 0,
     monthly_rate,
-    contract_start_date: parseDate(obj["contract_start_date"], defaultStartDate),
+    contract_start_date: derivedStartDate,
     notes: obj["notes"]?.trim() || null,
     payment_history,
   }
@@ -746,10 +765,17 @@ export default function CsvImportPage() {
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
 
-  // Apply global start date to all clients
+  // Apply global start date only to clients that have no payment history
+  // (i.e. no paid/partial months to derive a start date from)
   useEffect(() => {
     if (clients.length > 0) {
-      setClients((prev) => prev.map((c) => ({ ...c, contract_start_date: globalStartDate })))
+      setClients((prev) => prev.map((c) => {
+        const hasPayments = c.payment_history.some(
+          (p) => (p.status === "paid" || p.status === "partial") && p.amount_paid > 0
+        )
+        // Only override if there's no payment history to derive from
+        return hasPayments ? c : { ...c, contract_start_date: globalStartDate }
+      }))
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [globalStartDate])

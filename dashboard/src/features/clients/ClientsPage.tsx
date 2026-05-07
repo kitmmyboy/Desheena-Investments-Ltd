@@ -7,7 +7,16 @@ import {
   createColumnHelper,
   type PaginationState,
 } from '@tanstack/react-table'
-import { useClients, useMarkClientInactive, useMarkClientActive, type ClientWithContractStatus, type ClientsFilters } from './useClients'
+import {
+  useClients,
+  useMarkClientInactive,
+  useMarkClientActive,
+  useZones,
+  SERVICE_FREQUENCY_OPTIONS,
+  serviceFrequencyLabel,
+  type ClientWithContractStatus,
+  type ClientsFilters,
+} from './useClients'
 import ClientForm from './ClientForm'
 import ClientMapView from './ClientMapView'
 
@@ -100,7 +109,7 @@ function buildColumns(onRowClick: (client: ClientWithContractStatus) => void, on
     }),
     columnHelper.accessor('service_frequency', {
       header: 'Service frequency',
-      cell: (info) => <span className="text-gray-700 text-sm">{info.getValue()}</span>,
+      cell: (info) => <span className="text-gray-700 text-sm">{serviceFrequencyLabel(info.getValue())}</span>,
     }),
     columnHelper.accessor('zone', {
       header: 'Zone',
@@ -214,7 +223,9 @@ export default function ClientsPage() {
   const [zoneFilter, setZoneFilter] = useState('all')
   const [serviceFreqFilter, setServiceFreqFilter] = useState('all')
   const [contractStatusFilter, setContractStatusFilter] = useState('all')
-  const [showInactive, setShowInactive] = useState(false)
+  const [activeStatus, setActiveStatus] = useState<'active' | 'inactive' | 'all'>('active')
+
+  const { data: zones = [] } = useZones()
 
   // Debounce search input
   useEffect(() => {
@@ -240,7 +251,7 @@ export default function ClientsPage() {
     ...filters,
     page: pagination.pageIndex,
     pageSize: pagination.pageSize,
-    showInactive,
+    activeStatus,
   })
 
   // Modal state
@@ -383,7 +394,22 @@ export default function ClientsPage() {
           />
         </div>
 
-        {/* Zone filter */}
+        {/* Active status filter */}
+        <select
+          value={activeStatus}
+          onChange={(e) => {
+            setActiveStatus(e.target.value as 'active' | 'inactive' | 'all')
+            setPagination((p) => ({ ...p, pageIndex: 0 }))
+          }}
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          aria-label="Filter by active status"
+        >
+          <option value="active">Active clients</option>
+          <option value="inactive">Inactive clients</option>
+          <option value="all">All clients</option>
+        </select>
+
+        {/* Zone filter — populated from DB */}
         <select
           value={zoneFilter}
           onChange={(e) => setZoneFilter(e.target.value)}
@@ -391,17 +417,9 @@ export default function ClientsPage() {
           aria-label="Filter by zone"
         >
           <option value="all">All zones</option>
-          <option value="Kito">Kito</option>
-          <option value="Nsasa">Nsasa</option>
-          <option value="Naalya">Naalya</option>
-          <option value="Mbuya">Mbuya</option>
-          <option value="Mbalwa">Mbalwa</option>
-          <option value="Sonde">Sonde</option>
-          <option value="Kimbejja">Kimbejja</option>
-          <option value="Buwate">Buwate</option>
-          <option value="Nabusigwe">Nabusigwe</option>
-          <option value="Janda">Janda</option>
-          <option value="Mulawa">Mulawa</option>
+          {zones.map((z) => (
+            <option key={z} value={z}>{z}</option>
+          ))}
         </select>
 
         {/* Service frequency filter */}
@@ -412,11 +430,9 @@ export default function ClientsPage() {
           aria-label="Filter by service frequency"
         >
           <option value="all">All frequencies</option>
-          <option value="monthly">Monthly</option>
-          <option value="weekly">Weekly</option>
-          <option value="twice per week">Twice per week</option>
-          <option value="three times per week">Three times per week</option>
-          <option value="daily">Daily</option>
+          {SERVICE_FREQUENCY_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
         </select>
 
         {/* Contract status filter */}
@@ -433,17 +449,6 @@ export default function ClientsPage() {
           <option value="terminated">Terminated</option>
           <option value="">No contract</option>
         </select>
-
-        {/* Show inactive toggle */}
-        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={showInactive}
-            onChange={(e) => { setShowInactive(e.target.checked); setPagination((p) => ({ ...p, pageIndex: 0 })) }}
-            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-          />
-          Show inactive clients
-        </label>
       </div>
 
       {/* Error state */}

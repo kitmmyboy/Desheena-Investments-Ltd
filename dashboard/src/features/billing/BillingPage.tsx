@@ -185,7 +185,7 @@ function buildInvoiceColumns(onRecordPayment: (invoice: Invoice) => void) {
         <span className="font-medium text-gray-900">{info.getValue()}</span>
       ),
     }),
-    invoiceColumnHelper.accessor('invoice_period', {
+    invoiceColumnHelper.accessor('period_start', {
       header: 'Invoice Period',
       cell: (info) => (
         <span className="text-gray-700 text-sm">{formatPeriod(info.getValue())}</span>
@@ -276,7 +276,7 @@ function InvoicesTab({ onRecordPayment }: { onRecordPayment: (invoice: Invoice) 
     const headers = ['Client', 'Invoice Period', 'Amount (UGX)', 'Due Date', 'Status']
     const rows = data.map((inv) => [
       inv.clients?.name ?? '',
-      formatPeriod(inv.invoice_period),
+      formatPeriod(inv.period_start),
       String(inv.amount),
       inv.due_date,
       inv.status,

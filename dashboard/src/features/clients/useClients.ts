@@ -1,6 +1,48 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 
+// ---------------------------------------------------------------------------
+// Service frequency helpers — DB stores numeric values
+// ---------------------------------------------------------------------------
+
+export const SERVICE_FREQUENCY_OPTIONS: { value: string; label: string }[] = [
+  { value: '1', label: 'Weekly' },
+  { value: '2', label: 'Twice per week' },
+  { value: '3', label: 'Three times per week' },
+  { value: '4', label: 'Monthly' },
+  { value: '7', label: 'Daily' },
+]
+
+export function serviceFrequencyLabel(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) return '—'
+  const match = SERVICE_FREQUENCY_OPTIONS.find((o) => o.value === String(value))
+  return match ? match.label : String(value)
+}
+
+// ---------------------------------------------------------------------------
+// useZones — distinct zone values from the DB
+// ---------------------------------------------------------------------------
+
+export function useZones() {
+  return useQuery({
+    queryKey: ['clients-zones'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('zone')
+        .not('zone', 'is', null)
+        .order('zone', { ascending: true })
+
+      if (error) throw new Error(error.message)
+
+      const unique = Array.from(new Set((data ?? []).map((r: { zone: string }) => r.zone as string).filter(Boolean)))
+      unique.sort((a, b) => a.localeCompare(b))
+      return unique
+    },
+    staleTime: 5 * 60 * 1000, // cache for 5 min
+  })
+}
+
 function generateUUID(): string {
   return crypto.randomUUID()
 }
@@ -39,6 +81,9 @@ export interface ClientsFilters {
   serviceFrequency?: string
   contractStatus?: string
   paymentStatus?: string
+  /** 'active' | 'inactive' | 'all' — defaults to 'active' */
+  activeStatus?: 'active' | 'inactive' | 'all'
+  /** @deprecated use activeStatus instead */
   showInactive?: boolean
 }
 
@@ -78,9 +123,18 @@ export function useClients({
   zone,
   serviceFrequency,
   contractStatus,
-  showInactive = false,
+  activeStatus = 'active',
+  showInactive, // legacy compat
 }: ClientsFilters = {}): UseClientsResult {
-  const queryKey = ['clients', { page, pageSize, search, zone, serviceFrequency, contractStatus, showInactive }]
+  // Resolve legacy showInactive prop
+  const resolvedActiveStatus: 'active' | 'inactive' | 'all' =
+    activeStatus !== 'active'
+      ? activeStatus
+      : showInactive
+      ? 'all'
+      : 'active'
+
+  const queryKey = ['clients', { page, pageSize, search, zone, serviceFrequency, contractStatus, resolvedActiveStatus }]
 
   const { data, isLoading, error } = useQuery({
     queryKey,
@@ -129,10 +183,13 @@ export function useClients({
         .from('clients')
         .select('*, contracts(status, end_date, start_date)', { count: 'exact' })
 
-      // By default only show active clients; showInactive shows all
-      if (!showInactive) {
+      // Active status filter
+      if (resolvedActiveStatus === 'active') {
         query = query.eq('is_active', true)
+      } else if (resolvedActiveStatus === 'inactive') {
+        query = query.eq('is_active', false)
       }
+      // 'all' — no filter applied
 
       // Apply contract status pre-filter
       if (clientIds !== null) {
@@ -157,14 +214,14 @@ export function useClients({
         query = query.or(`name.ilike.%${term}%,phone.ilike.%${term}%`)
       }
 
-      // Zone filter
+      // Zone filter — exact match (zones are stored as proper-cased strings)
       if (zone && zone !== 'all') {
-        query = query.ilike('zone', zone)
+        query = query.eq('zone', zone)
       }
 
-      // Service frequency filter — exact match (case-insensitive)
+      // Service frequency filter — DB stores numeric strings ('1','2','3','4','7')
       if (serviceFrequency && serviceFrequency !== 'all') {
-        query = query.ilike('service_frequency', serviceFrequency)
+        query = query.eq('service_frequency', serviceFrequency)
       }
 
       // Sorting
