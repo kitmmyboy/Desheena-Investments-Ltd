@@ -13,8 +13,12 @@ export function formatDate(dateStr: string): string {
 
 export function formatPeriod(period: string | null): string {
   if (!period) return '—'
-  const [year, month] = period.split('-')
+  // Handles both "YYYY-MM" and "YYYY-MM-DD" formats
+  const parts = period.split('-')
+  const year = parts[0]
+  const month = parts[1]
   if (!year || !month) return period
   const date = new Date(Number(year), Number(month) - 1, 1)
+  if (isNaN(date.getTime())) return period
   return date.toLocaleDateString('en-UG', { year: 'numeric', month: 'long' })
 }
