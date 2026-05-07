@@ -78,11 +78,22 @@ function getFirstPaidPeriod(clientData: ParsedClient): { year: number; month: nu
 // Main handler
 // ---------------------------------------------------------------------------
 
+const responseHeaders = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+};
+
 Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: responseHeaders });
+  }
+
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
-      headers: { 'Content-Type': 'application/json' },
+      headers: responseHeaders,
     });
   }
 
